@@ -8,6 +8,17 @@ const api = axios.create({
   },
 });
 
+// Automatically attach stored session token for cross-domain or header-based auth
+api.interceptors.request.use((reqConfig) => {
+  try {
+    const token = localStorage.getItem('devhub_token');
+    if (token && !reqConfig.headers.Authorization) {
+      reqConfig.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch {}
+  return reqConfig;
+});
+
 export const authAPI = {
   demoLogin: (username) => api.post('/auth/demo-login', { username }),
   logout: () => api.post('/auth/logout'),

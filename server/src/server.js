@@ -26,6 +26,17 @@ const startServer = async () => {
       console.log(`=================================================\n`);
     });
 
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`\n⚠️  Port ${config.port} is already in use by another running instance.`);
+        console.error(`💡 Tip: Another terminal window or process is already running DevHub.`);
+        console.error(`👉 Run 'npm run clean' from the project root to free up the ports.\n`);
+        process.exit(1);
+      } else {
+        console.error('Server error:', err);
+      }
+    });
+
     const shutdown = () => {
       console.log('\nShutting down server gracefully...');
       server.close(() => {

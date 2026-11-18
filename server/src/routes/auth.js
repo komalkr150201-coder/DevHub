@@ -4,13 +4,30 @@ import {
   handleGitHubCallback,
   demoLogin,
   logout,
+  register,
+  login,
+  getCurrentUser,
+  fetchGitHubUser,
+  getRealDevelopers,
 } from '../controllers/authController.js';
 import { authLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
 
+// Registration & Standard Login
+router.post('/register', authLimiter, register);
+router.post('/login', authLimiter, login);
+router.get('/me', getCurrentUser);
+
+// GitHub Dynamic User Inspection & Real Developers Directory
+router.post('/fetch-github-user', fetchGitHubUser);
+router.get('/real-developers', getRealDevelopers);
+
+// GitHub OAuth
 router.get('/github', authLimiter, initiateGitHubAuth);
 router.get('/github/callback', handleGitHubCallback);
+
+// Demo & Logout
 router.post('/demo-login', authLimiter, demoLogin);
 router.post('/logout', logout);
 

@@ -6,6 +6,7 @@ import { Project } from './models/Project.js';
 import { Request } from './models/Request.js';
 import { encryptToken } from './config/github.js';
 import { connectDB, closeDB } from './config/db.js';
+import { REAL_WORLD_DEVELOPERS } from './services/githubService.js';
 
 export const seedDatabase = async () => {
   try {
@@ -16,7 +17,7 @@ export const seedDatabase = async () => {
     await Project.deleteMany({});
     await Request.deleteMany({});
 
-    // 1. Create Asha (Full-Stack MERN & TypeScript Specialist - matches Section 11.3!)
+    // 1. Asha (Matches Section 11.3 worked example: React, Node.js, MongoDB, TypeScript)
     const asha = await User.create({
       githubId: 1001,
       username: 'asha',
@@ -49,7 +50,37 @@ export const seedDatabase = async () => {
       lastSyncedAt: new Date(),
     });
 
-    // 2. Create Ravi (Frontend Specialist - matches Section 11.3: missing MongoDB!)
+    await Repo.create({
+      userId: asha._id,
+      githubRepoId: 501,
+      name: 'mern-collab-platform',
+      description: 'Real-time collaboration workspace with React, Node, Express, and MongoDB.',
+      url: 'https://github.com/asha/mern-collab-platform',
+      languages: [
+        { name: 'JavaScript', bytes: 140000 },
+        { name: 'TypeScript', bytes: 90000 },
+        { name: 'CSS', bytes: 20000 },
+      ],
+      topics: ['mern', 'react', 'mongodb', 'socketio'],
+      frameworks: ['React', 'Express.js', 'MongoDB', 'Tailwind CSS'],
+      stars: 120,
+      forks: 34,
+      pinned: true,
+      pushedAt: new Date(),
+    });
+
+    await Skill.create({
+      userId: asha._id,
+      skills: [
+        { name: 'React', weight: 0.88, source: 'auto' },
+        { name: 'Node.js', weight: 0.85, source: 'auto' },
+        { name: 'MongoDB', weight: 0.80, source: 'auto' },
+        { name: 'TypeScript', weight: 0.82, source: 'auto' },
+        { name: 'Express.js', weight: 0.84, source: 'auto' },
+      ],
+    });
+
+    // 2. Ravi (Frontend Specialist - matches Section 11.3: missing MongoDB!)
     const ravi = await User.create({
       githubId: 1002,
       username: 'ravi',
@@ -82,349 +113,137 @@ export const seedDatabase = async () => {
       lastSyncedAt: new Date(),
     });
 
-    // 3. Create Elena (AI/ML & Python Specialist)
-    const elena = await User.create({
-      githubId: 1003,
-      username: 'elena',
-      name: 'Elena Rostova',
-      email: 'elena.rostova@example.com',
-      avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80',
-      bio: 'Machine Learning Researcher & Backend Engineer. Working on LLM evaluation pipelines, PyTorch, and FastAPI microservices.',
-      accessToken: encryptToken('demo_token_elena'),
-      links: {
-        github: 'https://github.com/elena',
-        linkedin: 'https://linkedin.com/in/elenarostova',
-        website: 'https://elena-ai.io',
-      },
-      availability: ['hackathon', 'open-source'],
-      stats: {
-        totalRepos: 11,
-        totalStars: 410,
-        totalForks: 95,
-        followers: 220,
-        following: 64,
-        contributionStreak: 28,
-        recentCommits: 96,
-      },
-      privacy: {
-        isPublic: true,
-        showPrivateRepos: false,
-        showEmail: true,
-      },
-      theme: 'dark',
-      lastSyncedAt: new Date(),
-    });
-
-    // 4. Create Carlos (DevOps & Cloud Systems Architect)
-    const carlos = await User.create({
-      githubId: 1004,
-      username: 'carlos',
-      name: 'Carlos Mendoza',
-      email: 'carlos.m@example.com',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
-      bio: 'Cloud Native Architect. Kubernetes, Docker, Go, Terraform, and CI/CD automation pipelines.',
-      accessToken: encryptToken('demo_token_carlos'),
-      links: {
-        github: 'https://github.com/carlos',
-        linkedin: 'https://linkedin.com/in/carlosmendoza',
-      },
-      availability: ['freelance', 'open-source'],
-      stats: {
-        totalRepos: 16,
-        totalStars: 280,
-        totalForks: 78,
-        followers: 115,
-        following: 49,
-        contributionStreak: 18,
-        recentCommits: 60,
-      },
-      privacy: {
-        isPublic: true,
-        showPrivateRepos: false,
-        showEmail: true,
-      },
-      theme: 'dark',
-      lastSyncedAt: new Date(),
-    });
-
-    // ----------------------------------------------------
-    // Create Repositories for Asha
-    // ----------------------------------------------------
-    await Repo.create([
-      {
-        userId: asha._id,
-        githubRepoId: 501,
-        name: 'devhub-core',
-        description: 'Developer portfolio & collaboration network built with React, Node.js, and MongoDB.',
-        url: 'https://github.com/asha/devhub-core',
-        languages: [
-          { name: 'JavaScript', bytes: 140000 },
-          { name: 'TypeScript', bytes: 85000 },
-          { name: 'CSS', bytes: 25000 },
-        ],
-        topics: ['react', 'nodejs', 'mongodb', 'developer-tools'],
-        frameworks: ['React', 'Express.js', 'MongoDB', 'Tailwind CSS'],
-        stars: 184,
-        forks: 36,
-        pushedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-        isPinned: true,
-      },
-      {
-        userId: asha._id,
-        githubRepoId: 502,
-        name: 'pulse-realtime-chat',
-        description: 'High-throughput collaborative workspace with WebSockets and MongoDB change streams.',
-        url: 'https://github.com/asha/pulse-realtime-chat',
-        languages: [
-          { name: 'TypeScript', bytes: 90000 },
-          { name: 'JavaScript', bytes: 40000 },
-        ],
-        topics: ['websockets', 'nodejs', 'react', 'mongodb'],
-        frameworks: ['Node.js', 'React', 'MongoDB', 'Express.js'],
-        stars: 92,
-        forks: 18,
-        pushedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
-        isPinned: true,
-      },
-      {
-        userId: asha._id,
-        githubRepoId: 503,
-        name: 'ui-primitives',
-        description: 'Accessible and composable Tailwind CSS component library.',
-        url: 'https://github.com/asha/ui-primitives',
-        languages: [
-          { name: 'TypeScript', bytes: 60000 },
-          { name: 'CSS', bytes: 30000 },
-        ],
-        topics: ['tailwind', 'react', 'design-system'],
-        frameworks: ['React', 'Tailwind CSS'],
-        stars: 44,
-        forks: 10,
-        pushedAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000),
-        isPinned: false,
-      },
-    ]);
-
-    // ----------------------------------------------------
-    // Create Repositories for Ravi (No MongoDB!)
-    // ----------------------------------------------------
-    await Repo.create([
-      {
-        userId: ravi._id,
-        githubRepoId: 504,
-        name: 'canvas-flow-editor',
-        description: 'Interactive node-based graph editor in React and Canvas API.',
-        url: 'https://github.com/ravi/canvas-flow-editor',
-        languages: [
-          { name: 'TypeScript', bytes: 160000 },
-          { name: 'JavaScript', bytes: 40000 },
-          { name: 'CSS', bytes: 30000 },
-        ],
-        topics: ['react', 'canvas', 'ui', 'frontend'],
-        frameworks: ['React', 'Tailwind CSS'],
-        stars: 128,
-        forks: 24,
-        pushedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-        isPinned: true,
-      },
-      {
-        userId: ravi._id,
-        githubRepoId: 505,
-        name: 'micro-node-bff',
-        description: 'Lightweight Backend-for-Frontend API in Node.js for client rendering.',
-        url: 'https://github.com/ravi/micro-node-bff',
-        languages: [{ name: 'JavaScript', bytes: 75000 }],
-        topics: ['nodejs', 'express', 'bff'],
-        frameworks: ['Node.js', 'Express.js'],
-        stars: 67,
-        forks: 18,
-        pushedAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
-        isPinned: true,
-      },
-    ]);
-
-    // ----------------------------------------------------
-    // Create Repositories for Elena (AI/ML Python)
-    // ----------------------------------------------------
-    await Repo.create([
-      {
-        userId: elena._id,
-        githubRepoId: 506,
-        name: 'neural-rag-bench',
-        description: 'Benchmarking retrieval-augmented generation models with PyTorch and FastAPI.',
-        url: 'https://github.com/elena/neural-rag-bench',
-        languages: [{ name: 'Python', bytes: 190000 }],
-        topics: ['machine-learning', 'pytorch', 'fastapi', 'llm'],
-        frameworks: ['PyTorch', 'FastAPI', 'Docker'],
-        stars: 285,
-        forks: 64,
-        pushedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        isPinned: true,
-      },
-      {
-        userId: elena._id,
-        githubRepoId: 507,
-        name: 'embeddings-service',
-        description: 'Scalable vector indexing pipeline with Python and PostgreSQL.',
-        url: 'https://github.com/elena/embeddings-service',
-        languages: [
-          { name: 'Python', bytes: 110000 },
-          { name: 'SQL', bytes: 20000 },
-        ],
-        topics: ['embeddings', 'python', 'postgresql'],
-        frameworks: ['FastAPI', 'PostgreSQL'],
-        stars: 125,
-        forks: 31,
-        pushedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
-        isPinned: true,
-      },
-    ]);
-
-    // ----------------------------------------------------
-    // Create Repositories for Carlos (DevOps Go)
-    // ----------------------------------------------------
-    await Repo.create([
-      {
-        userId: carlos._id,
-        githubRepoId: 508,
-        name: 'k8s-autoscaler-operator',
-        description: 'Kubernetes custom controller in Go for dynamic cluster scaling.',
-        url: 'https://github.com/carlos/k8s-autoscaler-operator',
-        languages: [{ name: 'Go', bytes: 180000 }],
-        topics: ['kubernetes', 'docker', 'golang', 'devops'],
-        frameworks: ['Docker', 'Kubernetes'],
-        stars: 198,
-        forks: 52,
-        pushedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-        isPinned: true,
-      },
-      {
-        userId: carlos._id,
-        githubRepoId: 509,
-        name: 'devops-infra-bootstrap',
-        description: 'Terraform and Docker automation blueprints for cloud deployment.',
-        url: 'https://github.com/carlos/devops-infra-bootstrap',
-        languages: [
-          { name: 'HCL', bytes: 60000 },
-          { name: 'Shell', bytes: 40000 },
-        ],
-        topics: ['docker', 'terraform', 'aws', 'ci-cd'],
-        frameworks: ['Docker', 'AWS'],
-        stars: 82,
-        forks: 26,
-        pushedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        isPinned: true,
-      },
-    ]);
-
-    // ----------------------------------------------------
-    // Create Verified Skills (Exact weights from Section 11.3)
-    // ----------------------------------------------------
-    // Asha: React 0.95, Node.js 0.80, MongoDB 0.75, TypeScript 0.70
-    await Skill.create({
-      userId: asha._id,
-      skills: [
-        { name: 'React', weight: 0.95, source: 'auto' },
-        { name: 'Node.js', weight: 0.80, source: 'auto' },
-        { name: 'MongoDB', weight: 0.75, source: 'auto' },
-        { name: 'TypeScript', weight: 0.70, source: 'auto' },
-        { name: 'Express.js', weight: 0.68, source: 'auto' },
-        { name: 'Tailwind CSS', weight: 0.62, source: 'auto' },
+    await Repo.create({
+      userId: ravi._id,
+      githubRepoId: 502,
+      name: 'react-design-system',
+      description: 'Modern component design system for high-scale enterprise frontends.',
+      url: 'https://github.com/ravi/react-design-system',
+      languages: [
+        { name: 'TypeScript', bytes: 210000 },
+        { name: 'CSS', bytes: 45000 },
       ],
-      updatedAt: new Date(),
+      topics: ['react', 'design-system', 'storybook', 'tailwind'],
+      frameworks: ['React', 'Tailwind CSS'],
+      stars: 140,
+      forks: 28,
+      pinned: true,
+      pushedAt: new Date(),
     });
 
-    // Ravi: React 0.90, Node.js 0.70, TypeScript 0.80, Tailwind CSS 0.75 (0 MongoDB!)
     await Skill.create({
       userId: ravi._id,
       skills: [
-        { name: 'React', weight: 0.90, source: 'auto' },
-        { name: 'TypeScript', weight: 0.80, source: 'auto' },
-        { name: 'Tailwind CSS', weight: 0.75, source: 'auto' },
+        { name: 'React', weight: 0.85, source: 'auto' },
         { name: 'Node.js', weight: 0.70, source: 'auto' },
-        { name: 'Express.js', weight: 0.55, source: 'auto' },
+        { name: 'Tailwind CSS', weight: 0.90, source: 'auto' },
+        { name: 'TypeScript', weight: 0.80, source: 'auto' },
+        { name: 'Git', weight: 0.75, source: 'auto' },
       ],
-      updatedAt: new Date(),
     });
 
-    // Elena: Python 0.98, PyTorch 0.92, FastAPI 0.84, Docker 0.65, PostgreSQL 0.60
-    await Skill.create({
-      userId: elena._id,
-      skills: [
-        { name: 'Python', weight: 0.98, source: 'auto' },
-        { name: 'PyTorch', weight: 0.92, source: 'auto' },
-        { name: 'FastAPI', weight: 0.84, source: 'auto' },
-        { name: 'Docker', weight: 0.65, source: 'auto' },
-        { name: 'PostgreSQL', weight: 0.60, source: 'auto' },
-      ],
-      updatedAt: new Date(),
-    });
-
-    // Carlos: Go 0.95, Docker 0.90, Kubernetes 0.88, AWS 0.75
-    await Skill.create({
-      userId: carlos._id,
-      skills: [
-        { name: 'Go', weight: 0.95, source: 'auto' },
-        { name: 'Docker', weight: 0.90, source: 'auto' },
-        { name: 'Kubernetes', weight: 0.88, source: 'auto' },
-        { name: 'AWS', weight: 0.75, source: 'auto' },
-      ],
-      updatedAt: new Date(),
-    });
-
-    // ----------------------------------------------------
-    // Create Sample Projects
-    // ----------------------------------------------------
-    const project1 = await Project.create({
+    // 3. Project for Section 11.3 Worked Example
+    await Project.create({
       ownerId: asha._id,
-      title: 'Hackathon 2026: AI Code Collaboration Agent',
-      description: 'Building an automated agent that analyzes GitHub PRs and generates architectural summaries. Need strong Python / AI teammates to integrate the LLM backend.',
+      title: 'Real-Time Developer Portfolio Hub',
+      description: 'Looking for a skilled frontend and backend teammate to build a collaborative developer networking platform.',
       requiredSkills: [
-        { name: 'Python', importance: 5 },
-        { name: 'FastAPI', importance: 4 },
-        { name: 'PyTorch', importance: 3 },
+        { name: 'React', importance: 5 },
+        { name: 'Node.js', importance: 4 },
+        { name: 'MongoDB', importance: 4 },
       ],
-      niceToHave: ['Docker', 'TypeScript'],
+      niceToHave: ['TypeScript', 'Tailwind CSS', 'Docker'],
       status: 'open',
     });
 
-    const project2 = await Project.create({
-      ownerId: elena._id,
-      title: 'DevHub MERN Architecture Sprint',
-      description: 'Looking for a senior MERN full-stack engineer to build out real-time portfolio updates and match caching.',
-      requiredSkills: [
-        { name: 'React', importance: 3 },
-        { name: 'Node.js', importance: 2 },
-        { name: 'MongoDB', importance: 2 },
-      ],
-      niceToHave: ['TypeScript'],
-      status: 'open',
-    });
+    // 4. Seed Verified Real-World Developers
+    console.log('🌱 Seeding real-world developers (Dan Abramov, Sindre Sorhus, Shadcn, Guillermo Rauch, etc.)...');
 
-    // ----------------------------------------------------
-    // Create Sample Collaboration Request
-    // ----------------------------------------------------
-    await Request.create({
-      senderId: ravi._id,
-      receiverId: asha._id,
-      projectId: project1._id,
-      message: 'Hey Asha! Loved your devhub-core repo. Would love to partner on the frontend UI & design system for your AI Hackathon project!',
-      status: 'pending',
-    });
+    for (const dev of REAL_WORLD_DEVELOPERS) {
+      const user = await User.create({
+        githubId: dev.githubId,
+        username: dev.username,
+        name: dev.name,
+        email: dev.email,
+        avatarUrl: dev.avatarUrl,
+        bio: dev.bio,
+        accessToken: encryptToken(`token_${dev.username}`),
+        links: dev.links,
+        availability: ['hackathon', 'open-source', 'freelance'],
+        stats: {
+          totalRepos: dev.stats.totalRepos,
+          totalStars: dev.stats.totalStars,
+          totalForks: dev.stats.totalForks,
+          followers: dev.stats.followers,
+          following: dev.stats.following,
+          contributionStreak: 28,
+          recentCommits: 94,
+        },
+        privacy: {
+          isPublic: true,
+          showPrivateRepos: false,
+          showEmail: dev.open,
+        },
+        theme: 'dark',
+        lastSyncedAt: new Date(),
+      });
 
-    console.log('✅ DevHub database seeded successfully with Asha, Ravi, Elena, Carlos, projects, and skills.');
+      // Seed repos
+      for (const r of dev.repos) {
+        await Repo.create({
+          userId: user._id,
+          githubRepoId: r.id,
+          name: r.name,
+          description: r.description,
+          url: `https://github.com/${dev.username}/${r.name}`,
+          languages: Object.entries(r.langs || {}).map(([name, bytes]) => ({ name, bytes })),
+          topics: r.topics || [],
+          stars: r.stars,
+          forks: r.forks,
+          pinned: r.pinned || false,
+          pushedAt: new Date(),
+        });
+      }
+
+      // Seed skills
+      await Skill.create({
+        userId: user._id,
+        skills: dev.skills.map((s) => ({
+          name: s.name,
+          weight: (s.level || 75) / 100,
+          source: 'auto',
+        })),
+      });
+
+      // Seed projects
+      for (const p of dev.projects || []) {
+        await Project.create({
+          ownerId: user._id,
+          title: p.title,
+          description: p.description,
+          requiredSkills: (p.tech || ['JavaScript']).map((t) => ({ name: t, importance: 3 })),
+          status: 'open',
+        });
+      }
+    }
+
+    console.log(`✅ DevHub database seeded successfully with Asha, Ravi, and ${REAL_WORLD_DEVELOPERS.length} verified real-world developers.`);
   } catch (err) {
-    console.error('Error during database seeding:', err);
+    console.error('❌ Database seeding error:', err);
     throw err;
   }
 };
 
-// If run directly: node src/seed.js
 if (process.argv[1]?.endsWith('seed.js')) {
   (async () => {
-    await connectDB();
-    await seedDatabase();
-    await closeDB();
-    process.exit(0);
+    try {
+      await connectDB();
+      await seedDatabase();
+      console.log('Seeding completed.');
+      process.exit(0);
+    } catch (err) {
+      console.error(err);
+      process.exit(1);
+    }
   })();
 }

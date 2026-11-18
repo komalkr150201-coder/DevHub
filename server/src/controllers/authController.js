@@ -2,9 +2,15 @@ import crypto from 'crypto';
 import axios from 'axios';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
+import { Repo } from '../models/Repo.js';
+import { Skill } from '../models/Skill.js';
 import { config } from '../config/env.js';
 import { encryptToken } from '../config/github.js';
 import { syncGitHubData } from '../services/githubSync.js';
+import {
+  fetchRealGitHubData,
+  REAL_WORLD_DEVELOPERS
+} from '../services/githubService.js';
 
 /**
  * Helper to generate JWT token and set HTTP-only cookie
@@ -26,18 +32,251 @@ export const sendTokenCookie = (res, userId) => {
 };
 
 /**
+ * POST /auth/register
+ * Real user registration with email, password, and live GitHub username
+ */
+export const register = async (req, res) => {
+  try {
+    const { username, email, password, name, githubToken } = req.body;
+
+    if (!username) {
+      return res.status(400).json({ success: false, message: 'GitHub username is required' });
+    }
+    if (!password || password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
+    const cleanUsername = username.trim().toLowerCase();
+    const existingUser = await User.findOne({ username: cleanUsername });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: `@${cleanUsername} is already registered. Please log in instead.`
+      });
+    }
+
+    if (email) {
+      const existingEmail = await User.findOne({ email: email.trim().toLowerCase() });
+      if (existingEmail) {
+        return res.status(400).json({
+          success: false,
+          message: 'An account with this email already exists.'
+        });
+      }
+    }
+
+    // Fetch real GitHub profile & repos
+    const ghData = await fetchRealGitHubData(cleanUsername, githubToken);
+
+    const user = new User({
+      githubId: ghData.githubId,
+      username: cleanUsername,
+      name: name || ghData.name || cleanUsername,
+      email: email || ghData.email || `${cleanUsername}@devhub.dev`,
+      avatarUrl: ghData.avatarUrl,
+      bio: ghData.bio,
+      accessToken: githubToken ? encryptToken(githubToken) : '',
+      links: {
+        github: `https://github.com/${cleanUsername}`,
+        website: ghData.website || '',
+      },
+      stats: ghData.stats,
+      lastSyncedAt: new Date(),
+    });
+
+    user.setPassword(password);
+    await user.save();
+
+    // Save repos
+    const savedRepos = [];
+    for (const r of ghData.repos) {
+      const repoDoc = await Repo.create({
+        userId: user._id,
+        githubRepoId: r.id || r.githubRepoId || Math.floor(Math.random() * 900000),
+        name: r.name,
+        description: r.description || '',
+        url: r.url || `https://github.com/${cleanUsername}/${r.name}`,
+        languages: Object.entries(r.langs || {}).map(([n, bytes]) => ({ name: n, bytes })),
+        topics: r.topics || [],
+        stars: r.stars || 0,
+        forks: r.forks || 0,
+        pinned: !!r.pinned,
+        pushedAt: new Date(),
+      });
+      savedRepos.push(repoDoc);
+    }
+
+    // Save skills
+    await Skill.create({
+      userId: user._id,
+      skills: (ghData.skills || []).map((s) => ({
+        name: s.name,
+        category: s.category || 'Other',
+        score: s.level || 75,
+        normalizedScore: s.level || 75,
+        confidence: 0.9,
+      })),
+    });
+
+    sendTokenCookie(res, user._id);
+
+    return res.status(201).json({
+      success: true,
+      message: `Account created for @${user.username}`,
+      user: {
+        _id: user._id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        bio: user.bio,
+        stats: user.stats,
+        links: user.links,
+      },
+      repos: ghData.repos,
+      skills: ghData.skills,
+    });
+  } catch (err) {
+    console.error('Registration error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * POST /auth/login
+ * Real authentication via email or username + password
+ */
+export const login = async (req, res) => {
+  try {
+    const { identifier, password } = req.body;
+
+    if (!identifier || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide username/email and password',
+      });
+    }
+
+    const clean = identifier.trim().toLowerCase();
+    const user = await User.findOne({
+      $or: [{ username: clean }, { email: clean }],
+    }).select('+password +salt');
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or password',
+      });
+    }
+
+    const isValid = user.validatePassword(password);
+    if (!isValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid username or password',
+      });
+    }
+
+    const repos = await Repo.find({ userId: user._id });
+    const skillDoc = await Skill.findOne({ userId: user._id });
+
+    sendTokenCookie(res, user._id);
+
+    return res.json({
+      success: true,
+      message: `Welcome back, @${user.username}!`,
+      user: {
+        _id: user._id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        bio: user.bio,
+        stats: user.stats,
+        links: user.links,
+        privacy: user.privacy,
+      },
+      repos,
+      skills: skillDoc?.skills || [],
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * GET /auth/me
+ * Returns current authenticated user and real database repos
+ */
+export const getCurrentUser = async (req, res) => {
+  try {
+    const token = req.cookies?.token;
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const decoded = jwt.verify(token, config.jwtSecret);
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const repos = await Repo.find({ userId: user._id });
+    const skillDoc = await Skill.findOne({ userId: user._id });
+
+    res.json({
+      success: true,
+      user,
+      repos,
+      skills: skillDoc?.skills || [],
+    });
+  } catch (err) {
+    res.status(401).json({ success: false, message: 'Invalid session' });
+  }
+};
+
+/**
+ * POST /auth/fetch-github-user
+ * Fetch real world developer profile & real repos dynamically
+ */
+export const fetchGitHubUser = async (req, res) => {
+  try {
+    const { username, token } = req.body;
+    if (!username) {
+      return res.status(400).json({ success: false, message: 'Username is required' });
+    }
+
+    const data = await fetchRealGitHubData(username, token);
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * GET /auth/real-developers
+ * Returns verified real-world developers list
+ */
+export const getRealDevelopers = (req, res) => {
+  res.json({ success: true, developers: REAL_WORLD_DEVELOPERS });
+};
+
+/**
  * GET /auth/github
- * Redirects to GitHub authorization page with state parameter
+ * Redirects to GitHub authorization page with secure state parameter
  */
 export const initiateGitHubAuth = (req, res) => {
-  // If GitHub client ID is not configured, redirect to login page with notice or demo login
   if (!config.github.clientId || config.github.clientId === 'mock_client_id') {
-    return res.redirect(`${config.clientUrl}/?auth_notice=demo_mode`);
+    return res.redirect(`${config.clientUrl}/login?auth_notice=demo_mode`);
   }
 
   const state = crypto.randomBytes(16).toString('hex');
+  const isProduction = config.env === 'production';
   res.cookie('oauth_state', state, {
     httpOnly: true,
+    secure: isProduction,
     maxAge: 10 * 60 * 1000, // 10 minutes
     sameSite: 'lax',
   });
@@ -50,24 +289,36 @@ export const initiateGitHubAuth = (req, res) => {
 
 /**
  * GET /auth/github/callback
- * Handles OAuth callback, exchanges code, creates user, issues JWT
+ * Secure OAuth callback handler with state validation, access token exchange,
+ * profile & private email retrieval, and user upsertion
  */
 export const handleGitHubCallback = async (req, res) => {
-  const { code, state } = req.query;
+  const { code, state, error: ghError, error_description: ghErrorDesc } = req.query;
   const savedState = req.cookies?.oauth_state;
 
+  // Clear oauth state cookie immediately
   res.clearCookie('oauth_state');
 
-  if (!code) {
-    return res.redirect(`${config.clientUrl}/?error=missing_code`);
+  // 1. Handle user denied or canceled permission
+  if (ghError) {
+    console.warn(`[GitHub OAuth] Authorization error: ${ghError} - ${ghErrorDesc}`);
+    return res.redirect(
+      `${config.clientUrl}/login?error=${encodeURIComponent(ghError)}&error_description=${encodeURIComponent(ghErrorDesc || 'GitHub authorization was canceled or denied')}`
+    );
   }
 
+  // 2. Validate authorization code
+  if (!code) {
+    return res.redirect(`${config.clientUrl}/login?error=missing_code&error_description=No+authorization+code+received`);
+  }
+
+  // 3. Validate CSRF state parameter
   if (state && savedState && state !== savedState) {
-    return res.redirect(`${config.clientUrl}/?error=invalid_state`);
+    return res.redirect(`${config.clientUrl}/login?error=invalid_state&error_description=CSRF+state+validation+failed`);
   }
 
   try {
-    // 1. Exchange code for access token
+    // 4. Exchange authorization code for GitHub access token
     const tokenResponse = await axios.post(
       'https://github.com/login/oauth/access_token',
       {
@@ -83,11 +334,13 @@ export const handleGitHubCallback = async (req, res) => {
 
     const { access_token, error, error_description } = tokenResponse.data;
     if (error || !access_token) {
-      console.error('GitHub token exchange error:', error, error_description);
-      return res.redirect(`${config.clientUrl}/?error=token_exchange_failed`);
+      console.error('[GitHub OAuth] Token exchange error:', error, error_description);
+      return res.redirect(
+        `${config.clientUrl}/login?error=token_exchange_failed&error_description=${encodeURIComponent(error_description || 'Failed to exchange authorization code')}`
+      );
     }
 
-    // 2. Fetch user profile from GitHub
+    // 5. Fetch authenticated user profile
     const profileResponse = await axios.get('https://api.github.com/user', {
       headers: {
         Authorization: `Bearer ${access_token}`,
@@ -97,104 +350,159 @@ export const handleGitHubCallback = async (req, res) => {
 
     const gh = profileResponse.data;
 
-    // 3. Upsert user in database
-    let user = await User.findOne({ githubId: gh.id });
+    // 6. Retrieve primary/verified email (in case user email is private)
+    let userEmail = gh.email || '';
+    if (!userEmail) {
+      try {
+        const emailsResponse = await axios.get('https://api.github.com/user/emails', {
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            'User-Agent': 'DevHub-App',
+          },
+        });
+        if (Array.isArray(emailsResponse.data)) {
+          const primaryVerified = emailsResponse.data.find((e) => e.primary && e.verified);
+          const anyVerified = emailsResponse.data.find((e) => e.verified);
+          const first = emailsResponse.data[0];
+          userEmail = (primaryVerified || anyVerified || first)?.email || '';
+        }
+      } catch (emailErr) {
+        console.warn('[GitHub OAuth] Could not fetch private emails:', emailErr.message);
+      }
+    }
+
+    const cleanUsername = gh.login.toLowerCase();
     const encryptedToken = encryptToken(access_token);
+
+    // 7. Store or update user profile in MongoDB (prevent duplicate accounts)
+    let user = await User.findOne({
+      $or: [
+        { githubId: gh.id },
+        { username: cleanUsername },
+        ...(userEmail ? [{ email: userEmail.toLowerCase() }] : []),
+      ],
+    });
 
     if (!user) {
       user = new User({
         githubId: gh.id,
-        username: gh.login.toLowerCase(),
+        username: cleanUsername,
         name: gh.name || gh.login,
-        email: gh.email || '',
+        email: userEmail || `${cleanUsername}@devhub.dev`,
         avatarUrl: gh.avatar_url || '',
         bio: gh.bio || '',
         accessToken: encryptedToken,
         links: {
-          github: gh.html_url || `https://github.com/${gh.login}`,
-          website: gh.blog || '',
+          github: gh.html_url || `https://github.com/${cleanUsername}`,
+          website: gh.blog ? (gh.blog.startsWith('http') ? gh.blog : `https://${gh.blog}`) : '',
         },
         stats: {
           totalRepos: gh.public_repos || 0,
           followers: gh.followers || 0,
           following: gh.following || 0,
         },
+        lastSyncedAt: new Date(),
       });
       await user.save();
     } else {
+      user.githubId = gh.id;
+      user.username = cleanUsername;
       user.accessToken = encryptedToken;
-      user.avatarUrl = gh.avatar_url || user.avatarUrl;
-      user.name = gh.name || user.name;
-      user.bio = gh.bio || user.bio;
+      if (gh.avatar_url) user.avatarUrl = gh.avatar_url;
+      if (gh.name) user.name = gh.name;
+      if (gh.bio) user.bio = gh.bio;
+      if (userEmail && (!user.email || user.email.endsWith('@devhub.dev'))) {
+        user.email = userEmail;
+      }
+      if (!user.links) user.links = {};
+      user.links.github = gh.html_url || `https://github.com/${cleanUsername}`;
+      if (gh.blog) user.links.website = gh.blog.startsWith('http') ? gh.blog : `https://${gh.blog}`;
+      if (!user.stats) user.stats = {};
+      user.stats.totalRepos = gh.public_repos || user.stats.totalRepos || 0;
+      user.stats.followers = gh.followers || user.stats.followers || 0;
+      user.stats.following = gh.following || user.stats.following || 0;
       await user.save();
     }
 
-    // 4. Issue JWT cookie
-    sendTokenCookie(res, user._id);
+    // 8. Create secure session (JWT stored in HTTP-only cookie)
+    const token = sendTokenCookie(res, user._id);
 
-    // 5. Trigger sync in background (non-blocking)
-    syncGitHubData(user, true).catch((syncErr) => {
-      console.error('Initial sync error for user:', user.username, syncErr.message);
-    });
+    // 9. Sync user repositories, languages, and calculate skills
+    try {
+      await syncGitHubData(user, true);
+    } catch (syncErr) {
+      console.error('[GitHub OAuth] Initial repository sync error:', syncErr.message);
+    }
 
-    // 6. Redirect to frontend dashboard
-    res.redirect(`${config.clientUrl}/dashboard`);
+    // 10. Redirect user to DevHub dashboard (with cookie + token fallback for cross-domain deployments)
+    return res.redirect(`${config.clientUrl}/app?auth_success=1&token=${token}`);
   } catch (err) {
-    console.error('GitHub OAuth callback failed:', err.message);
-    res.redirect(`${config.clientUrl}/?error=oauth_failed`);
+    console.error('[GitHub OAuth] Callback processing failed:', err.message);
+    return res.redirect(`${config.clientUrl}/login?error=oauth_failed&error_description=${encodeURIComponent(err.message)}`);
   }
 };
 
 /**
  * POST /auth/demo-login
- * Seamless login as a demo/seed developer for testing without GitHub credentials
  */
 export const demoLogin = async (req, res) => {
   try {
-    const { username = 'asha' } = req.body;
+    const { username = 'gaearon' } = req.body;
     let user = await User.findOne({ username: username.toLowerCase() });
 
     if (!user) {
-      // Create a demo user if not found
+      const ghData = await fetchRealGitHubData(username);
       user = new User({
-        githubId: Math.floor(Math.random() * 900000) + 100000,
-        username: username.toLowerCase(),
-        name: username.charAt(0).toUpperCase() + username.slice(1) + ' (Demo)',
-        avatarUrl: `https://avatars.githubusercontent.com/u/${Math.floor(Math.random() * 800000)}?v=4`,
-        bio: 'Full-Stack Developer passionate about scalable web architectures and developer tooling.',
-        accessToken: encryptToken('demo_token_mock'),
-        availability: ['hackathon', 'open-source'],
-        stats: {
-          totalRepos: 18,
-          totalStars: 142,
-          totalForks: 38,
-          followers: 86,
-          following: 42,
-          contributionStreak: 14,
-          recentCommits: 48,
+        githubId: ghData.githubId,
+        username: ghData.username,
+        name: ghData.name,
+        avatarUrl: ghData.avatarUrl,
+        bio: ghData.bio,
+        links: {
+          github: `https://github.com/${ghData.username}`,
+          website: ghData.website || '',
         },
+        stats: ghData.stats,
       });
       await user.save();
+
+      for (const r of ghData.repos) {
+        await Repo.create({
+          userId: user._id,
+          githubRepoId: r.id || Math.floor(Math.random() * 900000),
+          name: r.name,
+          description: r.description,
+          languages: Object.entries(r.langs || {}).map(([n, bytes]) => ({ name: n, bytes })),
+          topics: r.topics || [],
+          stars: r.stars || 0,
+          forks: r.forks || 0,
+          pinned: r.pinned || false,
+          pushedAt: new Date(),
+        });
+      }
+
+      await Skill.create({
+        userId: user._id,
+        skills: (ghData.skills || []).map((s) => ({
+          name: s.name,
+          category: s.category || 'Other',
+          score: s.level || 75,
+          normalizedScore: s.level || 75,
+        })),
+      });
     }
+
+    const repos = await Repo.find({ userId: user._id });
+    const skillDoc = await Skill.findOne({ userId: user._id });
 
     sendTokenCookie(res, user._id);
 
     res.json({
       success: true,
       message: `Signed in as @${user.username}`,
-      user: {
-        _id: user._id,
-        username: user.username,
-        name: user.name,
-        email: user.email,
-        avatarUrl: user.avatarUrl,
-        bio: user.bio,
-        links: user.links,
-        availability: user.availability,
-        stats: user.stats,
-        privacy: user.privacy,
-        theme: user.theme,
-      },
+      user,
+      repos,
+      skills: skillDoc?.skills || [],
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -203,7 +511,6 @@ export const demoLogin = async (req, res) => {
 
 /**
  * POST /auth/logout
- * Clears JWT cookie
  */
 export const logout = (req, res) => {
   res.clearCookie('token');

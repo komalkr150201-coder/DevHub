@@ -116,7 +116,7 @@ cp .env.example server/.env
 ```
 
 To enable live GitHub OAuth login, obtain credentials at [GitHub Developer Settings](https://github.com/settings/developers):
-- **Authorization callback URL**: `http://localhost:5000/auth/github/callback`
+- **Authorization callback URL**: `http://localhost:5001/auth/github/callback`
 - Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in `server/.env`.
 
 *(Note: You can skip GitHub credentials and test immediately using the built-in **Try Demo Account** button!)*
@@ -128,7 +128,7 @@ npm run seed
 ```
 
 ### 4. Run Development Servers
-Start both the client (Vite on port 5173) and backend (Express on port 5000):
+Start both the client (Vite on port 5173) and backend (Express on port 5001):
 ```bash
 npm run dev
 ```
@@ -193,8 +193,83 @@ Expected output:
 
 ---
 
-## 🚢 Deployment (Section 18)
+## 🚢 Production Deployment Guide
 
-- **Frontend**: Deploy `client/` to Vercel or Netlify (configured with Vite SPA routing fallback).
-- **Backend**: Deploy `server/` to Render or Railway with Node.js runtime.
-- **Database**: Connect to managed MongoDB Atlas cluster via `MONGO_URI`.
+DevHub supports both **Unified Full-Stack Deployment** (single service on Render/Railway/Fly.io) and **Split Deployment** (Vercel frontend + Render backend).
+
+---
+
+### Step 1: Set Up MongoDB Atlas (Free Cloud Database)
+
+1. Go to [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) and create a free account.
+2. Create a new free cluster (**M0 Free Tier**).
+3. Under **Database Access**, create a database user (e.g., username `devhub_admin`, choose a secure password).
+4. Under **Network Access**, click **Add IP Address** and choose **Allow Access From Anywhere** (`0.0.0.0/0`) so your cloud host can connect.
+5. Click **Connect** → **Drivers** (Node.js) and copy your connection string:
+   ```
+   mongodb+srv://devhub_admin:<password>@cluster0.abcde.mongodb.net/devhub?retryWrites=true&w=majority
+   ```
+   *(Replace `<password>` with your database user password).*
+
+---
+
+### Step 2: Configure GitHub OAuth App for Production
+
+1. Visit [GitHub Developer Settings](https://github.com/settings/developers) → **OAuth Apps**.
+2. Select your DevHub OAuth app (or create a new production one):
+   - **Application name**: `DevHub Production`
+   - **Homepage URL**: `https://<your-deployed-app-domain>` (e.g. `https://devhub-app.onrender.com` or `https://devhub.vercel.app`)
+   - **Authorization callback URL**: `https://<your-backend-domain>/auth/github/callback` (e.g. `https://devhub-app.onrender.com/auth/github/callback`)
+3. Copy your **Client ID** and generate a new **Client Secret**.
+
+---
+
+### Step 3: Deploy Option A — Unified Full-Stack on Render (Recommended)
+
+This deploys both the React Vite frontend and the Express backend as a single service on [Render](https://render.com), eliminating cross-origin cookie issues.
+
+1. Push your repository to GitHub.
+2. Sign in to [Render](https://dashboard.render.com).
+3. Click **New +** → **Web Service** → Connect your GitHub repository.
+4. Configure the service settings:
+   - **Name**: `devhub-app`
+   - **Environment**: `Node`
+   - **Region**: Closest to you (e.g., Oregon, Frankfurt, Singapore)
+   - **Branch**: `main`
+   - **Build Command**: `npm run install:all && npm run build`
+   - **Start Command**: `npm start`
+5. Add Environment Variables under **Environment**:
+   | Variable | Value |
+   |---|---|
+   | `NODE_ENV` | `production` |
+   | `PORT` | `5001` |
+   | `MONGODB_URI` | Your MongoDB Atlas connection string |
+   | `JWT_SECRET` | Generate random 32+ char secret string |
+   | `ENCRYPTION_KEY` | 32-character AES secret key |
+   | `GITHUB_CLIENT_ID` | Your GitHub OAuth Client ID |
+   | `GITHUB_CLIENT_SECRET`| Your GitHub OAuth Client Secret |
+   | `GITHUB_CALLBACK_URL` | `https://<your-render-subdomain>.onrender.com/auth/github/callback` |
+   | `CLIENT_URL` | `https://<your-render-subdomain>.onrender.com` |
+6. Click **Deploy Web Service**.
+7. Once deployed, visit `https://<your-render-subdomain>.onrender.com` — your app is live in the real world!
+
+---
+
+### Step 4: Deploy Option B — Split Deployment (Vercel Frontend + Render Backend)
+
+If you prefer hosting the client on Vercel and API on Render:
+
+#### 1. Deploy Backend to Render:
+- Follow Step 3, but set **Root Directory** to `server`.
+- **Build Command**: `npm install`
+- **Start Command**: `node src/server.js`
+- Set `CLIENT_URL` to your Vercel URL (e.g. `https://devhub.vercel.app`).
+- Set `GITHUB_CALLBACK_URL` to `https://devhub-api.onrender.com/auth/github/callback`.
+
+#### 2. Deploy Frontend to Vercel:
+1. Go to [Vercel](https://vercel.com) → **Add New Project** → Import your GitHub repository.
+2. Set **Root Directory** to `client`.
+3. Set **Framework Preset** to `Vite`.
+4. Add Environment Variable:
+   - `VITE_API_URL`: `https://devhub-api.onrender.com`
+5. Click **Deploy**. Vercel will automatically build using `client/vercel.json` for SPA routing.

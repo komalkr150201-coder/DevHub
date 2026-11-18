@@ -1,82 +1,68 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext.jsx';
-import { Navbar } from './components/Navbar.jsx';
-import { Footer } from './components/Footer.jsx';
-import { ProtectedRoute } from './components/ProtectedRoute.jsx';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { AppLayout } from './components/AppLayout';
 
-import { Landing } from './pages/Landing.jsx';
-import { Dashboard } from './pages/Dashboard.jsx';
-import { EditPortfolio } from './pages/EditPortfolio.jsx';
-import { Discover } from './pages/Discover.jsx';
-import { ProjectsList } from './pages/ProjectsList.jsx';
-import { PostProject } from './pages/PostProject.jsx';
-import { ProjectMatches } from './pages/ProjectMatches.jsx';
-import { Requests } from './pages/Requests.jsx';
-import { PublicProfile } from './pages/PublicProfile.jsx';
-import { NotFound } from './pages/NotFound.jsx';
+import { Landing } from './pages/Landing';
+import { Login } from './pages/Login';
+import { Signup } from './pages/Signup';
+import { Dashboard } from './pages/Dashboard';
+import { MyPortfolio } from './pages/MyPortfolio';
+import { MyRepositories } from './pages/MyRepositories';
+import { MySkills } from './pages/MySkills';
+import { FindDevelopers } from './pages/FindDevelopers';
+import { CollaborationRequests } from './pages/CollaborationRequests';
+import { Settings } from './pages/Settings';
+import { PublicProfile } from './pages/PublicProfile';
 
-export const App = () => {
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
+export function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <div className="flex flex-col min-h-screen bg-[#0d1117] text-gray-100">
-          <Navbar />
-          <main className="flex-1">
-            <Routes>
-              {/* Public Pages */}
-              <Route path="/" element={<Landing />} />
-              <Route path="/discover" element={<Discover />} />
-              <Route path="/projects" element={<ProjectsList />} />
-              <Route path="/projects/:id" element={<ProjectMatches />} />
+    <BrowserRouter>
+      <AuthProvider>
+        <ScrollToTop />
+        <Routes>
+          {/* Public Landing & Auth */}
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
 
-              {/* Protected User Pages */}
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard/edit"
-                element={
-                  <ProtectedRoute>
-                    <EditPortfolio />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/projects/new"
-                element={
-                  <ProtectedRoute>
-                    <PostProject />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/requests"
-                element={
-                  <ProtectedRoute>
-                    <Requests />
-                  </ProtectedRoute>
-                }
-              />
+          {/* Public Profiles */}
+          <Route path="/u/:username" element={<PublicProfile />} />
 
-              {/* Shareable Public Profile URLs (e.g. devhub.app/asha and devhub.app/profile/asha) */}
-              <Route path="/profile/:username" element={<PublicProfile />} />
-              <Route path="/:username" element={<PublicProfile />} />
+          {/* Protected Application Suite */}
+          <Route
+            path="/app"
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Dashboard />} />
+            <Route path="portfolio" element={<MyPortfolio />} />
+            <Route path="repositories" element={<MyRepositories />} />
+            <Route path="skills" element={<MySkills />} />
+            <Route path="developers" element={<FindDevelopers />} />
+            <Route path="requests" element={<CollaborationRequests />} />
+            <Route path="settings" element={<Settings />} />
+          </Route>
 
-              {/* Catch-all */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </main>
-          <Footer />
-        </div>
-      </BrowserRouter>
-    </AuthProvider>
+          {/* Fallback to Public Profile if format is /:username, or root */}
+          <Route path="/:username" element={<PublicProfile />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   );
-};
+}
 
 export default App;
