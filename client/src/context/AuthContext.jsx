@@ -796,7 +796,44 @@ export function AuthProvider({ children }) {
         return formattedDev;
       }
     } catch (err) {
-      console.warn('Backend fetch failed, checking local real-world dataset...');
+      console.warn('Backend fetch failed, attempting client direct fetch or local dataset...');
+    }
+
+    // Direct browser fetch fallback to GitHub API
+    try {
+      const cleanUser = (username || '').trim().toLowerCase();
+      if (cleanUser) {
+        const directRes = await fetch(`https://api.github.com/users/${encodeURIComponent(cleanUser)}`);
+        if (directRes.ok) {
+          const gh = await directRes.json();
+          const formattedDev = {
+            id: `d-${gh.login.toLowerCase()}`,
+            name: gh.name || gh.login,
+            username: gh.login.toLowerCase(),
+            role: gh.bio?.slice(0, 50) || 'Software Engineer',
+            location: gh.location || 'Remote',
+            email: gh.email || `${gh.login.toLowerCase()}@devhub.dev`,
+            avatarUrl: gh.avatar_url || `https://avatars.githubusercontent.com/${gh.login}`,
+            open: true,
+            skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Git'],
+            repos: gh.public_repos || 0,
+            stars: 0,
+            followers: gh.followers || 0,
+            bio: gh.bio || 'Developer on GitHub.',
+            projects: [],
+            realRepos: []
+          };
+          setDevelopersList((prev) => {
+            if (!prev.some((item) => item.username.toLowerCase() === formattedDev.username)) {
+              return [formattedDev, ...prev];
+            }
+            return prev;
+          });
+          return formattedDev;
+        }
+      }
+    } catch (clientErr) {
+      console.warn('Client-side GitHub fetch fallback failed:', clientErr);
     }
 
     const fallback = findDeveloperByUsername(username);
