@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useAuth,
@@ -7,6 +7,7 @@ import {
 } from '../context/AuthContext';
 import { PageHeader } from '../components/PageHeader';
 import { Card } from '../components/Card';
+import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icons';
 import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
@@ -14,11 +15,49 @@ import { ToggleSwitch } from '../components/ToggleSwitch';
 import { FormField } from '../components/FormField';
 import { Modal } from '../components/Modal';
 
+/**
+ * Client-side image resizing and encoding
+ */
+const resizeAndEncodeImage = (file, maxSize = 400) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.88));
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+};
+
 export function Settings() {
   const {
     settings,
     saveSettings,
     profile,
+    updateProfile,
     github,
     setGithubConnected,
     logout,
@@ -28,6 +67,41 @@ export function Settings() {
 
   const [formSettings, setFormSettings] = useState(settings);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast('Please choose a valid image file (PNG, JPG, WebP)', 'error');
+      return;
+    }
+
+    try {
+      setUploadingAvatar(true);
+      const dataUrl = await resizeAndEncodeImage(file, 400);
+      await updateProfile({ avatarUrl: dataUrl });
+      toast('Profile photo updated successfully!', 'success');
+    } catch (err) {
+      toast('Upload failed: ' + err.message, 'error');
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleResetToGitHub = async () => {
+    const ghUrl = `https://avatars.githubusercontent.com/${profile.username}`;
+    await updateProfile({ avatarUrl: ghUrl });
+    toast('Reset to official GitHub profile picture', 'info');
+  };
+
+  const handleRemovePhoto = async () => {
+    await updateProfile({ avatarUrl: '' });
+    toast('Profile photo removed', 'info');
+  };
 
   const isDirty = JSON.stringify(formSettings) !== JSON.stringify(settings);
 
@@ -79,6 +153,83 @@ export function Settings() {
           </>
         }
       />
+
+      {/* Hidden File Input for Image Upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        style={{ display: 'none' }}
+        onChange={handleAvatarUpload}
+      />
+
+      {/* Profile Picture & Avatar */}
+      <Card
+        title="Profile picture"
+        subtitle="Upload a custom avatar or sync with GitHub"
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          <div
+            className="avatar-uploader"
+            title="Click to choose a photo"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {profile.avatarUrl ? (
+              <img
+                src={profile.avatarUrl}
+                alt={profile.name}
+                className="avatar-uploader-img"
+              />
+            ) : (
+              <Avatar name={profile.name} size={84} ring />
+            )}
+            <div className="avatar-uploader-overlay">
+              <Icon name="camera" size={20} />
+              <span>Change</span>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <strong style={{ fontSize: '1rem', display: 'block', marginBottom: 4 }}>
+              {profile.name} (@{profile.username})
+            </strong>
+            <p className="muted small" style={{ marginBottom: 12 }}>
+              Choose a PNG, JPG, or WebP photo up to 8MB. Images are automatically cropped and optimized for crisp display.
+            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                icon="upload"
+                loading={uploadingAvatar}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Upload Photo
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={handleResetToGitHub}
+              >
+                Use GitHub Photo
+              </Button>
+              {profile.avatarUrl && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleRemovePhoto}
+                  style={{ color: 'var(--red)' }}
+                >
+                  Remove Photo
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* Profile Visibility */}
       <Card

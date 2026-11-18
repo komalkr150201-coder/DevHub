@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { PageHeader } from '../components/PageHeader';
@@ -11,6 +11,45 @@ import { LangDot } from '../components/LangDot';
 import { SkillChip } from '../components/SkillChip';
 import { FormField } from '../components/FormField';
 import { Modal } from '../components/Modal';
+
+/**
+ * Client-side image resizing and WebP/JPEG encoding
+ * Keeps images lightweight (max 400x400) for instant loading and MongoDB efficiency
+ */
+const resizeAndEncodeImage = (file, maxSize = 400) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        resolve(dataUrl);
+      };
+      img.onerror = () => reject(new Error('Failed to load image for processing'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Failed to read image file'));
+    reader.readAsDataURL(file);
+  });
+};
 
 function AddProjectModalContent({ onSave, onCancel }) {
   const [form, setForm] = useState({
@@ -100,18 +139,63 @@ export function MyPortfolio() {
     projects,
     addProject,
     removeProject,
-    togglePin
+    togglePin,
+    toast
   } = useAuth();
   const navigate = useNavigate();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(profile);
   const [showAddProject, setShowAddProject] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
+  const fileInputRef = useRef(null);
   const pinnedRepos = repos.filter((r) => r.pinned);
 
   const handleFieldChange = (field) => (e) =>
     setEditForm({ ...editForm, [field]: e.target.value });
+
+  // Handle local image file upload & compression
+  const handleAvatarFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast('Please select an image file (PNG, JPG, WebP, GIF)', 'error');
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      toast('Image file size must be less than 8MB', 'error');
+      return;
+    }
+
+    try {
+      setUploadingAvatar(true);
+      const dataUrl = await resizeAndEncodeImage(file, 400);
+      setEditForm((prev) => ({ ...prev, avatarUrl: dataUrl }));
+      await updateProfile({ avatarUrl: dataUrl });
+      toast('Profile photo updated successfully!', 'success');
+    } catch (err) {
+      toast('Failed to process image: ' + err.message, 'error');
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleResetToGitHub = async () => {
+    const ghUrl = `https://avatars.githubusercontent.com/${profile.username}`;
+    setEditForm((prev) => ({ ...prev, avatarUrl: ghUrl }));
+    await updateProfile({ avatarUrl: ghUrl });
+    toast('Reset to official GitHub profile picture', 'info');
+  };
+
+  const handleRemoveAvatar = async () => {
+    setEditForm((prev) => ({ ...prev, avatarUrl: '' }));
+    await updateProfile({ avatarUrl: '' });
+    toast('Profile photo removed', 'info');
+  };
 
   const handleSaveProfile = (e) => {
     e.preventDefault();
@@ -122,7 +206,8 @@ export function MyPortfolio() {
         bio: editForm.bio,
         location: editForm.location,
         website: editForm.website,
-        email: editForm.email
+        email: editForm.email,
+        avatarUrl: editForm.avatarUrl || profile.avatarUrl
       });
       setIsEditing(false);
     }
@@ -142,6 +227,15 @@ export function MyPortfolio() {
             Preview public page
           </Button>
         }
+      />
+
+      {/* Hidden File Input for Avatar Upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        style={{ display: 'none' }}
+        onChange={handleAvatarFileUpload}
       />
 
       {/* Personal Information */}
@@ -165,6 +259,80 @@ export function MyPortfolio() {
       >
         {isEditing ? (
           <form className="form" onSubmit={handleSaveProfile}>
+            {/* Avatar section in edit mode */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                padding: '16px',
+                background: 'var(--card2)',
+                borderRadius: 'var(--r)',
+                border: '1px solid var(--line)',
+                marginBottom: 16
+              }}
+            >
+              <div
+                className="avatar-uploader"
+                title="Click to choose a photo"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {editForm.avatarUrl ? (
+                  <img
+                    src={editForm.avatarUrl}
+                    alt={editForm.name}
+                    className="avatar-uploader-img"
+                  />
+                ) : (
+                  <Avatar name={editForm.name} size={84} ring />
+                )}
+                <div className="avatar-uploader-overlay">
+                  <Icon name="camera" size={20} />
+                  <span>Change</span>
+                </div>
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong style={{ display: 'block', fontSize: '0.95rem', marginBottom: 4 }}>
+                  Profile Picture
+                </strong>
+                <p className="muted small" style={{ marginBottom: 10 }}>
+                  Upload a custom photo (PNG, JPG, WebP) or keep your GitHub picture.
+                </p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    icon="upload"
+                    loading={uploadingAvatar}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Upload New Image
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleResetToGitHub}
+                  >
+                    Use GitHub Photo
+                  </Button>
+                  {editForm.avatarUrl && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleRemoveAvatar}
+                      style={{ color: 'var(--red)' }}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="form-grid">
               <FormField label="Full name" id="pf-n">
                 <input
@@ -203,6 +371,14 @@ export function MyPortfolio() {
                   onChange={handleFieldChange('email')}
                 />
               </FormField>
+              <FormField label="Avatar Image URL (optional)" id="pf-avatar">
+                <input
+                  id="pf-avatar"
+                  value={editForm.avatarUrl || ''}
+                  onChange={handleFieldChange('avatarUrl')}
+                  placeholder="https://... or upload above"
+                />
+              </FormField>
             </div>
 
             <FormField
@@ -228,24 +404,53 @@ export function MyPortfolio() {
           </form>
         ) : (
           <div className="row gap top">
-            {profile.avatarUrl ? (
-              <img
-                src={profile.avatarUrl}
-                alt={profile.name}
-                style={{
-                  width: 72,
-                  height: 72,
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  border: '3px solid var(--vio)'
-                }}
-              />
-            ) : (
-              <Avatar name={profile.name} size={72} ring />
-            )}
+            <div
+              className="avatar-uploader"
+              title="Click to upload/change photo"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {profile.avatarUrl ? (
+                <img
+                  src={profile.avatarUrl}
+                  alt={profile.name}
+                  className="avatar-uploader-img"
+                />
+              ) : (
+                <Avatar name={profile.name} size={84} ring />
+              )}
+              <div className="avatar-uploader-overlay">
+                <Icon name="camera" size={20} />
+                <span>Upload</span>
+              </div>
+            </div>
+
             <div className="grow">
-              <h2>{profile.name}</h2>
-              <p className="muted">{profile.headline}</p>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <h2>{profile.name}</h2>
+                  <p className="muted">{profile.headline}</p>
+                </div>
+              </div>
+
+              <div className="avatar-actions">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="upload"
+                  loading={uploadingAvatar}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Upload Photo
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleResetToGitHub}
+                >
+                  Reset to GitHub
+                </Button>
+              </div>
+
               <p className="mt">{profile.bio}</p>
               <p className="small muted mt">
                 <Icon name="map" size={13} /> {profile.location} &nbsp;·&nbsp;{' '}

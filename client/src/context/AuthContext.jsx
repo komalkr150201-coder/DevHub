@@ -996,8 +996,13 @@ export function AuthProvider({ children }) {
   }, [toast]);
 
   // Profile
-  const updateProfile = useCallback((updates) => {
+  const updateProfile = useCallback(async (updates) => {
     setProfile((prev) => ({ ...prev, ...updates }));
+    try {
+      await api.patch('/api/me', updates);
+    } catch (err) {
+      // Fallback for offline / demo mode
+    }
     toast("Profile updated successfully", "success");
   }, [toast]);
 

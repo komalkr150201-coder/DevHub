@@ -32,11 +32,13 @@ export const getCurrentUser = async (req, res) => {
  */
 export const updateCurrentUser = async (req, res) => {
   try {
-    const { name, bio, links, availability, privacy, theme } = req.body;
+    const { name, bio, avatarUrl, headline, links, availability, privacy, theme } = req.body;
     const user = req.user;
 
     if (name !== undefined) user.name = name;
     if (bio !== undefined) user.bio = bio;
+    if (avatarUrl !== undefined) user.avatarUrl = avatarUrl;
+    if (headline !== undefined) user.headline = headline;
     if (links !== undefined) user.links = { ...user.links, ...links };
     if (availability !== undefined) user.availability = availability;
     if (privacy !== undefined) user.privacy = { ...user.privacy, ...privacy };
