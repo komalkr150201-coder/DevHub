@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const AVATAR_GRADIENTS = [
   ['#7c3aed', '#3b82f6'],
@@ -8,8 +8,11 @@ const AVATAR_GRADIENTS = [
   ['#0ea5e9', '#7c3aed']
 ];
 
-export function Avatar({ name = '?', size = 44, ring = false }) {
-  const initials = name
+export function Avatar({ name = '?', size = 44, ring = false, src = '', avatarUrl = '' }) {
+  const [imgError, setImgError] = useState(false);
+  const imageSrc = src || avatarUrl;
+
+  const initials = (name || '?')
     .split(' ')
     .filter(Boolean)
     .map((s) => s[0])
@@ -17,7 +20,27 @@ export function Avatar({ name = '?', size = 44, ring = false }) {
     .join('')
     .toUpperCase() || '?';
 
-  const pair = AVATAR_GRADIENTS[name.length % AVATAR_GRADIENTS.length];
+  const pair = AVATAR_GRADIENTS[(name || '').length % AVATAR_GRADIENTS.length];
+
+  if (imageSrc && !imgError) {
+    return (
+      <img
+        src={imageSrc}
+        alt={name}
+        onError={() => setImgError(true)}
+        className={`avatar ${ring ? 'avatar-ring' : ''}`}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          objectFit: 'cover',
+          display: 'inline-block',
+          verticalAlign: 'middle',
+          flex: 'none'
+        }}
+      />
+    );
+  }
 
   return (
     <span

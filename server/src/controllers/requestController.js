@@ -1,80 +1,130 @@
+
 import { Request } from '../models/Request.js';
 import { User } from '../models/User.js';
+import Notification from '../models/Notification.js';
 
 /**
  * GET /api/requests
- * Get all collaboration requests for the logged-in user (incoming and outgoing)
+ * Get all collaboration requests for the logged-in user
+ * (incoming and outgoing)
  */
 export const getRequests = async (req, res) => {
   try {
     const currentUserId = req.user._id;
 
-    // Incoming requests (where user is receiver)
-    const incoming = await Request.find({ receiverId: currentUserId })
-      .populate('senderId', 'username name avatarUrl bio links stats email privacy')
-      .populate('projectId', 'title description requiredSkills status')
+    // Incoming requests
+    const incoming = await Request.find({
+      receiverId: currentUserId,
+    })
+      .populate(
+        'senderId',
+        'username name avatarUrl bio links stats email privacy'
+      )
+      .populate(
+        'projectId',
+        'title description requiredSkills status'
+      )
       .sort({ createdAt: -1 });
 
-    // Outgoing requests (where user is sender)
-    const outgoing = await Request.find({ senderId: currentUserId })
-      .populate('receiverId', 'username name avatarUrl bio links stats email privacy')
-      .populate('projectId', 'title description requiredSkills status')
+    // Outgoing requests
+    const outgoing = await Request.find({
+      senderId: currentUserId,
+    })
+      .populate(
+        'receiverId',
+        'username name avatarUrl bio links stats email privacy'
+      )
+      .populate(
+        'projectId',
+        'title description requiredSkills status'
+      )
       .sort({ createdAt: -1 });
 
-    // Format contact visibility: if accepted, expose email and links
-    const formatReq = (r, isIncoming) => {
-      const obj = r.toObject();
+    // Format contact visibility
+    const formatReq = (request, isIncoming) => {
+      const obj = request.toObject();
       const partner = isIncoming ? obj.senderId : obj.receiverId;
 
       if (partner) {
-        // If not accepted, respect email privacy
-        if (r.status !== 'accepted' && !partner.privacy?.showEmail) {
+        if (
+          request.status !== 'accepted' &&
+          !partner.privacy?.showEmail
+        ) {
           delete partner.email;
         }
       }
+
       return obj;
     };
 
-    res.json({
+    return res.json({
       success: true,
       incoming: incoming.map((r) => formatReq(r, true)),
       outgoing: outgoing.map((r) => formatReq(r, false)),
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Get requests error:', err);
+
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 
 /**
  * POST /api/requests
- * Send a new collaboration request to another developer
+ * Send a new collaboration request
+ * Creates a notification for the receiver
  */
 export const sendRequest = async (req, res) => {
   try {
     const { receiverId, projectId, message } = req.body;
+    const senderId = req.user._id;
 
-    if (!receiverId || !message) {
+    // Validate required fields
+    if (!receiverId || !message?.trim()) {
       return res.status(400).json({
         success: false,
         message: 'receiverId and message are required',
       });
     }
 
-    if (receiverId.toString() === req.user._id.toString()) {
+    // Prevent sending request to yourself
+    if (receiverId.toString() === senderId.toString()) {
       return res.status(400).json({
         success: false,
         message: 'You cannot send a collaboration request to yourself',
       });
     }
 
+    // Check recipient
     const receiver = await User.findById(receiverId);
+
     if (!receiver) {
-      return res.status(404).json({ success: false, message: 'Recipient developer not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Recipient developer not found',
+      });
     }
 
-    // Check if pending request already exists
+    // Validate project if supplied
+    if (projectId) {
+      const projectExists = await Request.db
+        .model('Project')
+        .exists({ _id: projectId });
+
+      if (!projectExists) {
+        return res.status(404).json({
+          success: false,
+          message: 'Project not found',
+        });
+      }
+    }
+
+    // Check duplicate pending request
     const existing = await Request.findOne({
-      senderId: req.user._id,
+      senderId,
       receiverId,
       projectId: projectId || null,
       status: 'pending',
@@ -83,12 +133,14 @@ export const sendRequest = async (req, res) => {
     if (existing) {
       return res.status(400).json({
         success: false,
-        message: 'A pending collaboration request to this developer already exists',
+        message:
+          'A pending collaboration request to this developer already exists',
       });
     }
 
+    // Create collaboration request
     const collaborationRequest = new Request({
-      senderId: req.user._id,
+      senderId,
       receiverId,
       projectId: projectId || null,
       message: message.trim(),
@@ -96,27 +148,58 @@ export const sendRequest = async (req, res) => {
     });
 
     await collaborationRequest.save();
-    await collaborationRequest.populate('receiverId', 'username name avatarUrl');
 
-    res.status(201).json({
+    // Get sender information for notification
+    const sender = await User.findById(senderId).select(
+      'name username avatarUrl'
+    );
+
+    const senderName =
+      sender?.name || sender?.username || 'A developer';
+
+    // Create notification for receiver
+    await Notification.create({
+      recipient: receiverId,
+      sender: senderId,
+      type: 'collaboration_request',
+      title: 'New Collaboration Request',
+      message: `${senderName} sent you a collaboration request.`,
+      link: '/app/requests',
+    });
+
+    // Populate receiver for response
+    await collaborationRequest.populate(
+      'receiverId',
+      'username name avatarUrl'
+    );
+
+    return res.status(201).json({
       success: true,
       message: `Collaboration invitation sent to @${receiver.username}!`,
       request: collaborationRequest,
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Send request error:', err);
+
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 
 /**
  * PATCH /api/requests/:id
  * Accept or decline a collaboration request
+ * Notifies the original sender about the decision
  */
 export const updateRequestStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
+    const currentUserId = req.user._id;
 
+    // Validate status
     if (!['accepted', 'declined'].includes(status)) {
       return res.status(400).json({
         success: false,
@@ -124,12 +207,15 @@ export const updateRequestStatus = async (req, res) => {
       });
     }
 
-    // Only the receiver can accept or decline
+    // Only receiver can update the request
     const collaborationRequest = await Request.findOne({
       _id: id,
-      receiverId: req.user._id,
+      receiverId: currentUserId,
     })
-      .populate('senderId', 'username name avatarUrl bio links stats email')
+      .populate(
+        'senderId',
+        'username name avatarUrl bio links stats email'
+      )
       .populate('projectId', 'title description');
 
     if (!collaborationRequest) {
@@ -139,15 +225,52 @@ export const updateRequestStatus = async (req, res) => {
       });
     }
 
+    // Prevent duplicate status changes
+    if (collaborationRequest.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `This request has already been ${collaborationRequest.status}`,
+      });
+    }
+
+    // Update request status
     collaborationRequest.status = status;
     await collaborationRequest.save();
 
-    res.json({
+    // Notify original sender
+    const receiver = await User.findById(currentUserId).select(
+      'name username'
+    );
+
+    const receiverName =
+      receiver?.name || receiver?.username || 'A developer';
+
+    const accepted = status === 'accepted';
+
+    await Notification.create({
+      recipient: collaborationRequest.senderId._id,
+      sender: currentUserId,
+      type: accepted ? 'request_accepted' : 'request_rejected',
+      title: accepted
+        ? 'Collaboration Request Accepted'
+        : 'Collaboration Request Declined',
+      message: accepted
+        ? `${receiverName} accepted your collaboration request.`
+        : `${receiverName} declined your collaboration request.`,
+      link: '/app/requests',
+    });
+
+    return res.json({
       success: true,
       message: `Collaboration request ${status}`,
       request: collaborationRequest,
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('Update request status error:', err);
+
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 };

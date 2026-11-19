@@ -186,7 +186,7 @@ export function Dashboard() {
           <ul className="list">
             {pendingRequests.slice(0, 3).map((req) => (
               <li key={req.id} className="list-row">
-                <Avatar name={req.username} size={36} />
+                <Avatar name={req.username} avatarUrl={`https://avatars.githubusercontent.com/${req.username}`} size={36} />
                 <div className="grow">
                   <strong>@{req.username}</strong>
                   <p className="muted small clamp1">{req.project}</p>

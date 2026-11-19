@@ -99,7 +99,7 @@ export function CollaborationRequests() {
 
             return (
               <article key={req.id} className="card req">
-                <Avatar name={displayName} size={48} />
+                <Avatar name={displayName} avatarUrl={dev?.avatarUrl || req.sender?.avatarUrl || `https://avatars.githubusercontent.com/${req.username}`} size={48} />
 
                 <div className="grow">
                   <div className="row gap wrap">
