@@ -81,9 +81,10 @@ export function Login() {
 
   const handleInstantImport = async (e) => {
     e.preventDefault();
-    if (!anyUser.trim()) return;
+    const clean = anyUser.trim().replace(/^@/, '');
+    if (!clean) return;
     setImporting(true);
-    const ok = await importGitHubUser(anyUser.trim());
+    const ok = await importGitHubUser(clean);
     setImporting(false);
     if (ok) {
       navigate('/app');

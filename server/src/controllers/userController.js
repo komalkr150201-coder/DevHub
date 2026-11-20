@@ -3,6 +3,7 @@ import { Repo } from '../models/Repo.js';
 import { Skill } from '../models/Skill.js';
 import { syncGitHubData } from '../services/githubSync.js';
 import { normalizeSkillName } from '../services/skillExtractor.js';
+import { fetchRealGitHubData } from '../services/githubService.js';
 import { config } from '../config/env.js';
 
 /**
@@ -153,6 +154,34 @@ export const getPublicProfile = async (req, res) => {
     const user = await User.findOne({ username: username.toLowerCase() });
 
     if (!user) {
+      try {
+        const ghData = await fetchRealGitHubData(username);
+        if (ghData) {
+          return res.json({
+            success: true,
+            user: {
+              username: ghData.username,
+              name: ghData.name,
+              avatarUrl: ghData.avatarUrl,
+              bio: ghData.bio,
+              location: ghData.location,
+              email: ghData.email,
+              links: {
+                github: `https://github.com/${ghData.username}`,
+                website: ghData.website || '',
+              },
+              stats: ghData.stats,
+              privacy: { isPublic: true, showEmail: false },
+              availability: ['open-source'],
+            },
+            repos: ghData.repos,
+            skills: ghData.skills,
+          });
+        }
+      } catch (ghErr) {
+        // Fall through to 404
+      }
+
       return res.status(404).json({ success: false, message: 'Developer profile not found' });
     }
 

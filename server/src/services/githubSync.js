@@ -4,6 +4,7 @@ import { Repo } from '../models/Repo.js';
 import { Skill } from '../models/Skill.js';
 import { decryptToken } from '../config/github.js';
 import { extractSkillsFromRepos, normalizeSkillName } from './skillExtractor.js';
+import { fetchRealGitHubData } from './githubService.js';
 
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 
@@ -72,9 +73,60 @@ export const syncGitHubData = async (user, forceRefresh = false) => {
   // Check for decrypted token
   const token = decryptToken(user.accessToken);
 
-  // If mock/demo user or invalid token, use or retain local data
+  // If no OAuth token or demo token, attempt live public GitHub fetch
   if (!token || token.startsWith('demo_token') || token.startsWith('mock_token')) {
-    console.log(`[GitHubSync] Demo/Mock account detected for @${user.username}. Updating local skills...`);
+    if (user.username !== 'asha' && user.username !== 'ravi') {
+      try {
+        console.log(`[GitHubSync] No OAuth token for @${user.username}. Fetching live public GitHub data...`);
+        const ghData = await fetchRealGitHubData(user.username);
+        if (ghData && ghData.repos && ghData.repos.length > 0) {
+          // Update user fields
+          if (ghData.avatarUrl && (!user.avatarUrl || user.avatarUrl.includes('example.com') || user.avatarUrl.includes('placeholder'))) {
+            user.avatarUrl = ghData.avatarUrl;
+          }
+          if (ghData.name && !user.name) user.name = ghData.name;
+          if (ghData.bio && (!user.bio || user.bio.includes('Software engineer and open source contributor on GitHub'))) {
+            user.bio = ghData.bio;
+          }
+          user.stats = ghData.stats;
+          user.lastSyncedAt = new Date();
+          await user.save();
+
+          // Replace repos with real ones
+          await Repo.deleteMany({ userId: user._id });
+          const newRepos = [];
+          for (const r of ghData.repos) {
+            const repoDoc = await Repo.create({
+              userId: user._id,
+              githubRepoId: r.id || r.githubRepoId || Math.floor(Math.random() * 900000),
+              name: r.name,
+              description: r.description || '',
+              url: r.url || `https://github.com/${user.username}/${r.name}`,
+              languages: Object.entries(r.langs || {}).map(([n, bytes]) => ({ name: n, bytes })),
+              topics: r.topics || [],
+              stars: r.stars || 0,
+              forks: r.forks || 0,
+              pinned: !!r.pinned,
+              pushedAt: new Date(),
+            });
+            newRepos.push(repoDoc);
+          }
+
+          const updatedSkills = extractSkillsFromRepos(newRepos);
+          await Skill.findOneAndUpdate(
+            { userId: user._id },
+            { skills: updatedSkills, updatedAt: new Date() },
+            { upsert: true, new: true }
+          );
+
+          return { user, repos: newRepos, skills: updatedSkills };
+        }
+      } catch (publicErr) {
+        console.warn(`[GitHubSync] Live public fetch fallback failed for @${user.username}:`, publicErr.message);
+      }
+    }
+
+    console.log(`[GitHubSync] Retaining local data for @${user.username}. Updating local skills...`);
     const repos = await Repo.find({ userId: user._id });
     const existingSkillDoc = await Skill.findOne({ userId: user._id });
     const updatedSkills = extractSkillsFromRepos(repos, existingSkillDoc?.skills || []);

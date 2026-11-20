@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useAuth,
@@ -7,6 +7,7 @@ import {
   copyToClipboard,
   getPublicProfileUrl
 } from '../context/AuthContext';
+import { api } from '../services/api';
 import { PublicNav } from '../components/PublicNav';
 import { Avatar } from '../components/Avatar';
 import { Badge } from '../components/Badge';
@@ -29,11 +30,83 @@ export function PublicProfile() {
     projects,
     settings,
     mySkillNames,
+    fetchRealDeveloper,
     toast
   } = useAuth();
 
-  const isSelf = username === profile.username;
-  const otherDev = isSelf ? null : findDeveloperByUsername(username);
+  const isSelf = username?.toLowerCase() === profile.username?.toLowerCase();
+  const localOtherDev = isSelf ? null : findDeveloperByUsername(username);
+
+  const [remoteDev, setRemoteDev] = useState(null);
+  const [loading, setLoading] = useState(!isSelf && !localOtherDev);
+
+  useEffect(() => {
+    if (isSelf || localOtherDev) return;
+
+    let mounted = true;
+    const fetchUser = async () => {
+      setLoading(true);
+      try {
+        const res = await api.get(`/api/users/${username}`);
+        if (res.data?.success && res.data.user && mounted) {
+          const u = res.data.user;
+          const uRepos = (res.data.repos || []).map((r, i) => ({
+            id: r.githubRepoId || r.id || i + 1,
+            name: r.name,
+            description: r.description || '',
+            language: r.language || r.languages?.[0]?.name || 'Code',
+            stars: r.stars || 0,
+            forks: r.forks || 0,
+            pinned: !!r.isPinned || !!r.pinned
+          }));
+          const uSkills = (res.data.skills || []).map((s) => s.name || s);
+
+          setRemoteDev({
+            name: u.name || u.username,
+            username: u.username,
+            role: u.headline || u.bio?.slice(0, 50) || 'Developer on DevHub',
+            location: u.location || 'Remote',
+            email: u.email || `${u.username}@devhub.dev`,
+            avatarUrl: u.avatarUrl || `https://avatars.githubusercontent.com/${u.username}`,
+            open: u.availability?.length > 0,
+            skills: uSkills.length ? uSkills : ['JavaScript', 'React', 'Node.js', 'Git'],
+            levels: Object.fromEntries(uSkills.map((s) => [s, 85])),
+            repos: u.stats?.totalRepos || uRepos.length,
+            stars: u.stats?.totalStars || uRepos.reduce((acc, r) => acc + (r.stars || 0), 0),
+            followers: u.stats?.followers || 0,
+            bio: u.bio || `Developer profile on DevHub (@${u.username}).`,
+            website: u.links?.website,
+            realRepos: uRepos,
+            projects: []
+          });
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        // Fall back to fetchRealDeveloper
+      }
+
+      try {
+        const fallback = await fetchRealDeveloper(username);
+        if (fallback && mounted) {
+          setRemoteDev({
+            ...fallback,
+            levels: Object.fromEntries((fallback.skills || []).map((s) => [s, 85]))
+          });
+        }
+      } catch (err) {
+        // Unable to fetch
+      }
+      if (mounted) setLoading(false);
+    };
+
+    fetchUser();
+    return () => {
+      mounted = false;
+    };
+  }, [username, isSelf, localOtherDev, fetchRealDeveloper]);
+
+  const targetDev = isSelf ? null : (localOtherDev || remoteDev);
 
   const handleShare = async () => {
     const url = getPublicProfileUrl(username);
@@ -41,8 +114,20 @@ export function PublicProfile() {
     toast(ok ? 'Profile link copied' : 'Copy failed', ok ? 'success' : 'error');
   };
 
+  if (loading) {
+    return (
+      <div className="pub">
+        <PublicNav />
+        <div className="pub-in" style={{ textAlign: 'center', padding: '80px 20px' }}>
+          <div className="spinner" style={{ width: 32, height: 32, margin: '0 auto 16px' }} />
+          <p className="muted">Loading developer profile for @{username}...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Not found
-  if (!isSelf && !otherDev) {
+  if (!isSelf && !targetDev) {
     return (
       <div className="pub">
         <PublicNav />
@@ -91,17 +176,18 @@ export function PublicProfile() {
         repos: repos.length,
         stars: repos.reduce((acc, r) => acc + (r.stars || 0), 0),
         skills: skills.map((s) => s.name),
-        levels: Object.fromEntries(skills.map((s) => [s.name, s.level]))
+        levels: Object.fromEntries(skills.map((s) => [s.name, s.level])),
+        realRepos: repos
       }
     : {
-        ...otherDev,
-        website: null
+        ...targetDev,
+        levels: targetDev.levels || Object.fromEntries((targetDev.skills || []).map((s) => [s, 85]))
       };
 
   const match = !isSelf && authed ? calculateSkillOverlap(mySkillNames, devData.skills) : null;
   const showLevels = isSelf && settings.showSkillLevels;
   const showRepos = !isSelf || settings.showRepos;
-  const pinnedRepos = repos.filter((r) => r.pinned);
+  const displayRepos = isSelf ? (repos.filter((r) => r.pinned).length ? repos.filter((r) => r.pinned) : repos) : (devData.realRepos || devData.repos || []);
   const showEmail = isSelf ? settings.showEmail : false;
 
   return (
@@ -273,20 +359,20 @@ export function PublicProfile() {
         </div>
 
         {/* Featured Repositories */}
-        {showRepos && isSelf && (
+        {showRepos && displayRepos.length > 0 && (
           <section className="card">
             <h3 className="card-title">Featured repositories</h3>
             <div className="repo-grid">
-              {pinnedRepos.map((repo) => (
-                <article key={repo.id} className="repo-mini">
+              {displayRepos.slice(0, 6).map((repo) => (
+                <article key={repo.id || repo.name} className="repo-mini">
                   <h4>
                     <Icon name="github" size={14} /> {repo.name}
                   </h4>
-                  <p className="muted small clamp2">{repo.description}</p>
+                  <p className="muted small clamp2">{repo.description || 'Public repository'}</p>
                   <div className="between small">
                     <LangDot language={repo.language} />
                     <span className="muted">
-                      <Icon name="star" size={12} /> {repo.stars}
+                      <Icon name="star" size={12} /> {repo.stars || 0}
                     </span>
                   </div>
                 </article>

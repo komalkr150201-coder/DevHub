@@ -57,12 +57,13 @@ export function Signup() {
   }
 
   const handleVerifyGitHub = async () => {
-    if (!username.trim()) {
+    const clean = username.trim().replace(/^@/, '');
+    if (!clean) {
       toast("Please enter a GitHub username", "error");
       return;
     }
     setVerifying(true);
-    const data = await fetchRealDeveloper(username.trim(), githubToken.trim());
+    const data = await fetchRealDeveloper(clean, githubToken.trim());
     setVerifying(false);
     if (data) {
       setPreviewUser(data);
@@ -70,13 +71,14 @@ export function Signup() {
       if (!email && data.email && !data.email.includes('example.com')) setEmail(data.email);
       toast(`Verified @${data.username} on GitHub (${data.repos} public repos)!`, "success");
     } else {
-      toast(`Could not find GitHub user @${username}`, "error");
+      toast(`Could not find GitHub user @${clean}`, "error");
     }
   };
 
   const handleSignup = async (e) => {
     e.preventDefault();
-    if (!username.trim()) {
+    const clean = username.trim().replace(/^@/, '');
+    if (!clean) {
       toast("GitHub username is required", "error");
       return;
     }
@@ -87,8 +89,8 @@ export function Signup() {
 
     setLoading(true);
     const res = await registerWithBackend({
-      username: username.trim(),
-      name: name.trim() || username.trim(),
+      username: clean,
+      name: name.trim() || clean,
       email: email.trim(),
       password,
       githubToken: githubToken.trim()

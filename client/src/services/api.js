@@ -54,4 +54,5 @@ export const requestAPI = {
   updateRequestStatus: (id, status) => api.patch(`/api/requests/${id}`, { status }),
 };
 
+export { api };
 export default api;

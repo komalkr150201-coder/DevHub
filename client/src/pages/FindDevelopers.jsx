@@ -57,7 +57,7 @@ export function FindDevelopers() {
 
   // Filter & calculate overlap
   const filteredDevs = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim().toLowerCase().replace(/^@/, '');
     return developersList.map((dev) => ({
       ...dev,
       ...calculateSkillOverlap(mySkillNames, dev.skills)
@@ -97,7 +97,8 @@ export function FindDevelopers() {
     if (!importHandle.trim()) return;
 
     setFetchingUser(true);
-    const result = await fetchRealDeveloper(importHandle.trim());
+    const clean = importHandle.trim().replace(/^@/, '');
+    const result = await fetchRealDeveloper(clean);
     setFetchingUser(false);
 
     if (result) {
@@ -105,6 +106,19 @@ export function FindDevelopers() {
       setImportHandle('');
     } else {
       toast(`Could not find developer @${importHandle}`, 'error');
+    }
+  };
+
+  const handleLookupQuery = async () => {
+    const clean = query.trim().replace(/^@/, '');
+    if (!clean) return;
+    setFetchingUser(true);
+    const result = await fetchRealDeveloper(clean);
+    setFetchingUser(false);
+    if (result) {
+      toast(`Fetched real GitHub developer @${result.username}!`, 'success');
+    } else {
+      toast(`Could not find developer @${clean} on GitHub`, 'error');
     }
   };
 
@@ -235,19 +249,33 @@ export function FindDevelopers() {
       {/* Developer Grid */}
       {filteredDevs.length === 0 ? (
         <EmptyState
-          title="No developers match"
-          text="Remove a skill filter or fetch a new GitHub username above."
+          title={query.trim() ? `No developer found for "${query}"` : "No developers match"}
+          text={
+            query.trim()
+              ? `Would you like to fetch @${query.trim().replace(/^@/, '')} directly from GitHub?`
+              : "Remove a skill filter or fetch a new GitHub username above."
+          }
           action={
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setQuery('');
-                setSelectedSkills([]);
-                setOnlyOpen(false);
-              }}
-            >
-              Reset filters
-            </Button>
+            query.trim() ? (
+              <Button
+                loading={fetchingUser}
+                icon="github"
+                onClick={handleLookupQuery}
+              >
+                Fetch @{query.trim().replace(/^@/, '')} from GitHub
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setQuery('');
+                  setSelectedSkills([]);
+                  setOnlyOpen(false);
+                }}
+              >
+                Reset filters
+              </Button>
+            )
           }
         />
       ) : (

@@ -177,8 +177,23 @@ export const login = async (req, res) => {
       });
     }
 
-    const repos = await Repo.find({ userId: user._id });
-    const skillDoc = await Skill.findOne({ userId: user._id });
+    let repos = await Repo.find({ userId: user._id });
+    let skillDoc = await Skill.findOne({ userId: user._id });
+
+    // If repos is empty or has synthesized placeholder repos, auto-sync live GitHub data
+    const isPlaceholder = repos.some((r) => r.name.includes('-portfolio') && r.name.includes(user.username));
+    if ((repos.length === 0 || isPlaceholder) && user.username !== 'asha' && user.username !== 'ravi') {
+      try {
+        console.log(`[AuthLogin] Auto-syncing real GitHub repos for @${user.username}...`);
+        const syncResult = await syncGitHubData(user, true);
+        if (syncResult?.repos?.length) {
+          repos = syncResult.repos;
+          skillDoc = { skills: syncResult.skills };
+        }
+      } catch (syncErr) {
+        console.warn(`[AuthLogin] Auto-sync failed: ${syncErr.message}`);
+      }
+    }
 
     sendTokenCookie(res, user._id);
 
@@ -223,8 +238,22 @@ export const getCurrentUser = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    const repos = await Repo.find({ userId: user._id });
-    const skillDoc = await Skill.findOne({ userId: user._id });
+    let repos = await Repo.find({ userId: user._id });
+    let skillDoc = await Skill.findOne({ userId: user._id });
+
+    // Auto-sync real repos if placeholder or empty
+    const isPlaceholder = repos.some((r) => r.name.includes('-portfolio') && r.name.includes(user.username));
+    if ((repos.length === 0 || isPlaceholder) && user.username !== 'asha' && user.username !== 'ravi') {
+      try {
+        const syncResult = await syncGitHubData(user, true);
+        if (syncResult?.repos?.length) {
+          repos = syncResult.repos;
+          skillDoc = { skills: syncResult.skills };
+        }
+      } catch (syncErr) {
+        // Fall back to current data
+      }
+    }
 
     res.json({
       success: true,
@@ -492,8 +521,23 @@ export const demoLogin = async (req, res) => {
       });
     }
 
-    const repos = await Repo.find({ userId: user._id });
-    const skillDoc = await Skill.findOne({ userId: user._id });
+    let repos = await Repo.find({ userId: user._id });
+    let skillDoc = await Skill.findOne({ userId: user._id });
+
+    // If repos is empty or has synthesized placeholder repos, auto-sync live GitHub data
+    const isPlaceholder = repos.some((r) => r.name.includes('-portfolio') && r.name.includes(user.username));
+    if ((repos.length === 0 || isPlaceholder) && user.username !== 'asha' && user.username !== 'ravi') {
+      try {
+        console.log(`[AuthLogin] Auto-syncing real GitHub repos for @${user.username}...`);
+        const syncResult = await syncGitHubData(user, true);
+        if (syncResult?.repos?.length) {
+          repos = syncResult.repos;
+          skillDoc = { skills: syncResult.skills };
+        }
+      } catch (syncErr) {
+        console.warn(`[AuthLogin] Auto-sync failed: ${syncErr.message}`);
+      }
+    }
 
     sendTokenCookie(res, user._id);
 

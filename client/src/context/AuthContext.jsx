@@ -554,6 +554,27 @@ export function getPublicProfileUrl(username) {
   return `${window.location.origin}/u/${username}`;
 }
 
+// Helper to normalize repository objects for frontend consistency
+const normalizeRepoList = (reposList = [], username = '') => {
+  if (!Array.isArray(reposList)) return [];
+  return reposList.map((r, i) => ({
+    id: r.githubRepoId || r.id || r._id || i + 1,
+    name: r.name,
+    description: r.description || '',
+    url: r.url || `https://github.com/${username}/${r.name}`,
+    language: r.language || r.languages?.[0]?.name || 'Code',
+    langs: r.langs || (r.languages || []).reduce(
+      (acc, l) => ({ ...acc, [l.name]: Math.round((l.bytes || 1000) / 1000) || 10 }),
+      {}
+    ),
+    stars: r.stars || 0,
+    forks: r.forks || 0,
+    topics: r.topics || [],
+    pinned: !!r.pinned || !!r.isPinned,
+    updated: r.updated || 'Recently'
+  }));
+};
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -743,6 +764,53 @@ export function AuthProvider({ children }) {
     };
   }, [toast]);
 
+  // Load registered developers from backend into developersList
+  useEffect(() => {
+    const loadRegistered = async () => {
+      try {
+        const res = await api.get('/api/search?limit=50');
+        if (res.data?.success && Array.isArray(res.data.users)) {
+          const registered = res.data.users.map((u) => ({
+            id: `u-${u._id || u.username}`,
+            name: u.name || u.username,
+            username: u.username,
+            role: u.bio?.slice(0, 50) || 'Full-Stack Developer',
+            location: 'Remote',
+            email: u.email || `${u.username}@devhub.dev`,
+            avatarUrl: u.avatarUrl || `https://avatars.githubusercontent.com/${u.username}`,
+            open: true,
+            skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Git'],
+            repos: u.stats?.totalRepos || 1,
+            stars: u.stats?.totalStars || 0,
+            followers: u.stats?.followers || 0,
+            bio: u.bio || 'Full-Stack Developer on DevHub.',
+            projects: [],
+            realRepos: []
+          }));
+
+          setDevelopersList((prev) => {
+            const combined = [...prev];
+            for (const r of registered) {
+              const existingIdx = combined.findIndex(
+                (d) => d.username.toLowerCase() === r.username.toLowerCase()
+              );
+              if (existingIdx === -1) {
+                combined.unshift(r);
+              } else {
+                combined[existingIdx] = { ...combined[existingIdx], ...r };
+              }
+            }
+            return combined;
+          });
+        }
+      } catch (err) {
+        // Fall back to default list
+      }
+    };
+
+    loadRegistered();
+  }, []);
+
   // Auth actions
   const login = useCallback(() => {
     try { localStorage.setItem('devhub_auth', '1'); } catch {}
@@ -804,9 +872,39 @@ export function AuthProvider({ children }) {
     try {
       const cleanUser = (username || '').trim().toLowerCase();
       if (cleanUser) {
-        const directRes = await fetch(`https://api.github.com/users/${encodeURIComponent(cleanUser)}`);
+        const [directRes, reposRes] = await Promise.all([
+          fetch(`https://api.github.com/users/${encodeURIComponent(cleanUser)}`),
+          fetch(`https://api.github.com/users/${encodeURIComponent(cleanUser)}/repos?per_page=100&sort=pushed`)
+        ]);
+
         if (directRes.ok) {
           const gh = await directRes.json();
+          let ghRepos = [];
+          if (reposRes.ok) {
+            try {
+              ghRepos = await reposRes.json();
+            } catch {}
+          }
+
+          const parsedRepos = Array.isArray(ghRepos) ? ghRepos.map((r, i) => ({
+            id: r.id || i + 1,
+            githubRepoId: r.id,
+            name: r.name,
+            description: r.description || '',
+            url: r.html_url || `https://github.com/${gh.login}/${r.name}`,
+            language: r.language || 'Code',
+            langs: r.language ? { [r.language]: 100 } : {},
+            stars: r.stargazers_count || 0,
+            forks: r.forks_count || 0,
+            topics: r.topics || [],
+            pinned: i < 3,
+            updated: new Date(r.pushed_at || r.updated_at || Date.now()).toLocaleDateString()
+          })) : [];
+
+          const totalStars = parsedRepos.reduce((acc, r) => acc + (r.stars || 0), 0);
+          const langSkills = Array.from(new Set(parsedRepos.map((r) => r.language).filter(Boolean)));
+          const baseSkills = langSkills.length ? langSkills : ['JavaScript', 'TypeScript', 'React', 'Git'];
+
           const formattedDev = {
             id: `d-${gh.login.toLowerCase()}`,
             name: gh.name || gh.login,
@@ -816,14 +914,15 @@ export function AuthProvider({ children }) {
             email: gh.email || `${gh.login.toLowerCase()}@devhub.dev`,
             avatarUrl: gh.avatar_url || `https://avatars.githubusercontent.com/${gh.login}`,
             open: true,
-            skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Git'],
-            repos: gh.public_repos || 0,
-            stars: 0,
+            skills: baseSkills,
+            repos: parsedRepos.length || gh.public_repos || 0,
+            stars: totalStars,
             followers: gh.followers || 0,
             bio: gh.bio || 'Developer on GitHub.',
             projects: [],
-            realRepos: []
+            realRepos: parsedRepos
           };
+
           setDevelopersList((prev) => {
             if (!prev.some((item) => item.username.toLowerCase() === formattedDev.username)) {
               return [formattedDev, ...prev];
@@ -914,19 +1013,20 @@ export function AuthProvider({ children }) {
         joined: "Jan 2024"
       });
 
-      if (devData.realRepos && devData.realRepos.length > 0) {
-        setRepos(devData.realRepos);
+      const incomingRepos = devData.realRepos || (Array.isArray(devData.repos) ? devData.repos : []);
+      if (incomingRepos.length > 0) {
+        setRepos(incomingRepos);
+        try { localStorage.setItem('devhub_repos', JSON.stringify(incomingRepos)); } catch {}
       }
 
       if (devData.skills && devData.skills.length > 0) {
-        setSkills(
-          devData.skills.map((s, i) => ({
-            id: i + 1,
-            name: s,
-            category: "Frontend",
-            level: 85 - i * 3
-          }))
-        );
+        const mappedSkills = devData.skills.map((s, i) => (
+          typeof s === 'string'
+            ? { id: i + 1, name: s, category: 'Frontend', level: 85 - i * 3 }
+            : { id: s.id || i + 1, name: s.name, category: s.category || 'Frontend', level: s.level || 80 }
+        ));
+        setSkills(mappedSkills);
+        try { localStorage.setItem('devhub_skills', JSON.stringify(mappedSkills)); } catch {}
       }
 
       setGithub({
@@ -971,8 +1071,21 @@ export function AuthProvider({ children }) {
           joined: 'Just now'
         });
 
-        if (res.data.repos?.length) setRepos(res.data.repos);
-        if (res.data.skills?.length) setSkills(res.data.skills);
+        if (res.data.repos?.length) {
+          const norm = normalizeRepoList(res.data.repos, u.username);
+          setRepos(norm);
+          try { localStorage.setItem('devhub_repos', JSON.stringify(norm)); } catch {}
+        }
+        if (res.data.skills?.length) {
+          const mappedSkills = res.data.skills.map((s, i) => ({
+            id: i + 1,
+            name: s.name,
+            category: s.category || 'Frontend',
+            level: s.level || s.normalizedScore || s.score || 80
+          }));
+          setSkills(mappedSkills);
+          try { localStorage.setItem('devhub_skills', JSON.stringify(mappedSkills)); } catch {}
+        }
 
         login();
         toast(res.data.message || "Account created successfully!", "success");
@@ -1006,8 +1119,21 @@ export function AuthProvider({ children }) {
           joined: 'Active'
         });
 
-        if (res.data.repos?.length) setRepos(res.data.repos);
-        if (res.data.skills?.length) setSkills(res.data.skills);
+        if (res.data.repos?.length) {
+          const norm = normalizeRepoList(res.data.repos, u.username);
+          setRepos(norm);
+          try { localStorage.setItem('devhub_repos', JSON.stringify(norm)); } catch {}
+        }
+        if (res.data.skills?.length) {
+          const mappedSkills = res.data.skills.map((s, i) => ({
+            id: i + 1,
+            name: s.name,
+            category: s.category || 'Frontend',
+            level: s.level || s.normalizedScore || s.score || 80
+          }));
+          setSkills(mappedSkills);
+          try { localStorage.setItem('devhub_skills', JSON.stringify(mappedSkills)); } catch {}
+        }
 
         login();
         toast(`Welcome back, @${u.username}!`, "success");
@@ -1104,10 +1230,73 @@ export function AuthProvider({ children }) {
   }, [toast]);
 
   const syncRepos = useCallback(async () => {
-    toast(`Syncing live repositories for @${profile.username}...`, "info");
-    await new Promise((r) => setTimeout(r, 1000));
-    setGithub((prev) => ({ ...prev, lastSync: "just now" }));
-    toast("Synced repositories from GitHub", "success");
+    try {
+      toast(`Syncing live repositories for @${profile.username}...`, "info");
+      
+      let res = null;
+      try {
+        res = await api.post('/api/sync');
+      } catch (e) {
+        // Fallback to fetch-github-user
+      }
+
+      if (!res?.data?.success || !res?.data?.repos?.length) {
+        res = await api.post('/auth/fetch-github-user', {
+          username: profile.username
+        });
+      }
+
+      const fetchedRepos = res?.data?.repos || res?.data?.data?.repos || [];
+      const fetchedSkills = res?.data?.skills || res?.data?.data?.skills || [];
+      const fetchedStats = res?.data?.user?.stats || res?.data?.data?.stats;
+
+      if (fetchedRepos.length > 0) {
+        const formatted = fetchedRepos.map((r, i) => ({
+          id: r.id || r.githubRepoId || i + 1,
+          name: r.name,
+          description: r.description || '',
+          url: r.url || `https://github.com/${profile.username}/${r.name}`,
+          language: r.language || r.languages?.[0]?.name || 'Code',
+          langs: r.langs || (r.languages || []).reduce((acc, l) => ({ ...acc, [l.name]: Math.round(l.bytes / 1000) || 10 }), {}),
+          stars: r.stars || 0,
+          forks: r.forks || 0,
+          topics: r.topics || [],
+          pinned: !!r.pinned || !!r.isPinned,
+          updated: r.updated || 'Just now'
+        }));
+
+        setRepos(formatted);
+        try { localStorage.setItem('devhub_repos', JSON.stringify(formatted)); } catch {}
+
+        if (fetchedSkills.length > 0) {
+          const formattedSkills = fetchedSkills.map((s, i) => ({
+            id: i + 1,
+            name: s.name,
+            category: s.category || 'Frontend',
+            level: s.level || s.normalizedScore || 80
+          }));
+          setSkills(formattedSkills);
+          try { localStorage.setItem('devhub_skills', JSON.stringify(formattedSkills)); } catch {}
+        }
+
+        if (fetchedStats) {
+          setProfile((prev) => ({
+            ...prev,
+            followers: fetchedStats.followers ?? prev.followers,
+            following: fetchedStats.following ?? prev.following,
+            contributions: (fetchedStats.totalStars || 0) * 3 || prev.contributions
+          }));
+        }
+
+        setGithub((prev) => ({ ...prev, connected: true, lastSync: "just now" }));
+        toast(`Synced ${formatted.length} live repositories from GitHub!`, "success");
+        return true;
+      } else {
+        toast(`No public repositories found for @${profile.username}`, "info");
+      }
+    } catch (err) {
+      toast("Sync failed: " + (err.response?.data?.message || err.message), "error");
+    }
   }, [profile.username, toast]);
 
   // Projects
@@ -1197,6 +1386,7 @@ export function AuthProvider({ children }) {
     dismissToast,
     mySkillNames,
     developersList,
+    setDevelopersList,
     fetchRealDeveloper,
     importGitHubUser,
     registerWithBackend,
