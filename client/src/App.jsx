@@ -15,6 +15,7 @@ import { FindDevelopers } from './pages/FindDevelopers';
 import { CollaborationRequests } from './pages/CollaborationRequests';
 import { Settings } from './pages/Settings';
 import { PublicProfile } from './pages/PublicProfile';
+import { ResetPassword } from './pages/ResetPassword';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -34,6 +35,8 @@ export function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/forgot-password" element={<ResetPassword />} />
 
           {/* Public Profiles */}
           <Route path="/u/:username" element={<PublicProfile />} />

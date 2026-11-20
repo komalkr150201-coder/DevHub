@@ -9,6 +9,8 @@ import {
   getCurrentUser,
   fetchGitHubUser,
   getRealDevelopers,
+  forgotPassword,
+  resetPassword,
 } from '../controllers/authController.js';
 import { authLimiter } from '../middleware/rateLimit.js';
 
@@ -18,6 +20,10 @@ const router = Router();
 router.post('/register', authLimiter, register);
 router.post('/login', authLimiter, login);
 router.get('/me', getCurrentUser);
+
+// Password recovery
+router.post('/forgot-password', authLimiter, forgotPassword);
+router.post('/reset-password', authLimiter, resetPassword);
 
 // GitHub Dynamic User Inspection & Real Developers Directory
 router.post('/fetch-github-user', fetchGitHubUser);

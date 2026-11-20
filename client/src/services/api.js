@@ -22,6 +22,8 @@ api.interceptors.request.use((reqConfig) => {
 export const authAPI = {
   demoLogin: (username) => api.post('/auth/demo-login', { username }),
   logout: () => api.post('/auth/logout'),
+  forgotPassword: (identifier) => api.post('/auth/forgot-password', { identifier }),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
 };
 
 export const userAPI = {

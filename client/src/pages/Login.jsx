@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Navigate, useNavigate, Link } from 'react-router-dom';
 import { useAuth, REAL_WORLD_DEVELOPERS } from '../context/AuthContext';
+import { authAPI } from '../services/api';
 import { Logo } from '../components/Logo';
 import { Icon } from '../components/Icons';
 import { Button } from '../components/Button';
 import { Avatar } from '../components/Avatar';
 import { Mascot } from '../components/Mascot';
+import { Modal } from '../components/Modal';
 import { ToastHost } from '../components/ToastHost';
 
 export function Login() {
@@ -23,6 +25,17 @@ export function Login() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Forgot password modal state
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [resetStep, setResetStep] = useState(1); // 1 = request token, 2 = enter new password
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccessNotice, setResetSuccessNotice] = useState('');
 
   // Instant GitHub import explore
   const [anyUser, setAnyUser] = useState('');
@@ -88,6 +101,73 @@ export function Login() {
     setImporting(false);
     if (ok) {
       navigate('/app');
+    }
+  };
+
+  const handleOpenForgot = () => {
+    setForgotIdentifier(identifier.trim());
+    setResetStep(1);
+    setResetToken('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setResetSuccessNotice('');
+    setShowForgotModal(true);
+  };
+
+  const handleRequestReset = async (e) => {
+    e.preventDefault();
+    const clean = forgotIdentifier.trim().replace(/^@/, '');
+    if (!clean) {
+      toast('Please enter your GitHub username or email', 'error');
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const res = await authAPI.forgotPassword(clean);
+      if (res.data?.success) {
+        setResetToken(res.data.resetToken);
+        setResetSuccessNotice(`Password reset token verified for @${res.data.username || clean}! You can set your new password below.`);
+        setResetStep(2);
+        toast('Reset code generated! Please enter your new password.', 'success');
+      }
+    } catch (err) {
+      toast(err.response?.data?.message || err.message, 'error');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast('Password must be at least 6 characters', 'error');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast('Passwords do not match', 'error');
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      const res = await authAPI.resetPassword({
+        token: resetToken,
+        password: newPassword,
+        identifier: forgotIdentifier.trim()
+      });
+
+      if (res.data?.success) {
+        toast('Password updated successfully! Welcome back.', 'success');
+        setShowForgotModal(false);
+        // Automatically attempt login or redirect
+        await loginWithCredentials({ identifier: forgotIdentifier.trim(), password: newPassword });
+        navigate('/app');
+      }
+    } catch (err) {
+      toast(err.response?.data?.message || err.message, 'error');
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -209,7 +289,17 @@ export function Login() {
             </div>
 
             <div className="field">
-              <label htmlFor="lg-pw">Password</label>
+              <div className="between" style={{ marginBottom: 4 }}>
+                <label htmlFor="lg-pw" style={{ margin: 0 }}>Password</label>
+                <button
+                  type="button"
+                  className="link small"
+                  onClick={handleOpenForgot}
+                  style={{ color: 'var(--sky)', fontSize: '0.82rem', padding: 0 }}
+                >
+                  Forgot password?
+                </button>
+              </div>
               <input
                 id="lg-pw"
                 type="password"
@@ -286,6 +376,110 @@ export function Login() {
           </p>
         </div>
       </main>
+
+      {/* Forgot / Reset Password Modal */}
+      {showForgotModal && (
+        <Modal
+          title={resetStep === 1 ? 'Reset Your Password' : 'Set New Password'}
+          onClose={() => setShowForgotModal(false)}
+        >
+          {resetStep === 1 ? (
+            <form className="form" onSubmit={handleRequestReset}>
+              <p className="muted small" style={{ margin: 0 }}>
+                Enter your registered GitHub username or email address and we'll verify your account to reset your password.
+              </p>
+
+              <div className="field">
+                <label htmlFor="fp-id">GitHub Username or Email</label>
+                <input
+                  id="fp-id"
+                  required
+                  value={forgotIdentifier}
+                  onChange={(e) => setForgotIdentifier(e.target.value)}
+                  placeholder="e.g. komalkr150201-coder or you@domain.com"
+                  autoFocus
+                />
+              </div>
+
+              <div className="row gap end" style={{ marginTop: 12 }}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowForgotModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  loading={forgotLoading}
+                >
+                  Continue
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <form className="form" onSubmit={handleResetPassword}>
+              {resetSuccessNotice && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    background: 'rgba(56, 189, 248, 0.12)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    borderRadius: 'var(--r)',
+                    color: 'var(--sky)',
+                    fontSize: '0.86rem'
+                  }}
+                >
+                  {resetSuccessNotice}
+                </div>
+              )}
+
+              <div className="field">
+                <label htmlFor="rp-new">New Password (min 6 characters)</label>
+                <input
+                  id="rp-new"
+                  type="password"
+                  required
+                  minLength={6}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  autoFocus
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor="rp-conf">Confirm New Password</label>
+                <input
+                  id="rp-conf"
+                  type="password"
+                  required
+                  minLength={6}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                />
+              </div>
+
+              <div className="row gap end" style={{ marginTop: 12 }}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setResetStep(1)}
+                >
+                  Back
+                </Button>
+                <Button
+                  type="submit"
+                  loading={resetLoading}
+                >
+                  Update Password & Sign In
+                </Button>
+              </div>
+            </form>
+          )}
+        </Modal>
+      )}
 
       <ToastHost toasts={toasts} onDismiss={dismissToast} />
     </div>

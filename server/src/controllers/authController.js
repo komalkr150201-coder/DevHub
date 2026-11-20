@@ -560,3 +560,121 @@ export const logout = (req, res) => {
   res.clearCookie('token');
   res.json({ success: true, message: 'Logged out successfully' });
 };
+
+/**
+ * POST /auth/forgot-password
+ * Generates a password reset token for the given username or email
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { identifier } = req.body;
+
+    if (!identifier || !identifier.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide your GitHub username or registered email',
+      });
+    }
+
+    const clean = identifier.trim().toLowerCase().replace(/^@/, '');
+    const user = await User.findOne({
+      $or: [{ username: clean }, { email: clean }],
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: `No account found for "${clean}". Please check the username/email or sign up.`,
+      });
+    }
+
+    const resetToken = user.createPasswordResetToken();
+    await user.save({ validateBeforeSave: false });
+
+    const resetUrl = `${config.clientUrl}/reset-password?token=${resetToken}&identifier=${encodeURIComponent(user.username)}`;
+
+    console.log(`[Auth] Password reset requested for @${user.username}: ${resetUrl}`);
+
+    return res.json({
+      success: true,
+      message: `Password reset link generated for @${user.username}`,
+      resetToken,
+      resetUrl,
+      username: user.username,
+      email: user.email,
+    });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * POST /auth/reset-password
+ * Verifies the token and updates the user's password
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, password, identifier } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reset token is required',
+      });
+    }
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long',
+      });
+    }
+
+    const hashedToken = crypto.createHash('sha256').update(token.trim()).digest('hex');
+
+    let user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user && identifier) {
+      const clean = identifier.trim().toLowerCase().replace(/^@/, '');
+      user = await User.findOne({
+        $or: [{ username: clean }, { email: clean }],
+        resetPasswordToken: hashedToken,
+        resetPasswordExpire: { $gt: Date.now() },
+      });
+    }
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password reset link is invalid or has expired. Please request a new one.',
+      });
+    }
+
+    user.setPassword(password);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    sendTokenCookie(res, user._id);
+
+    return res.json({
+      success: true,
+      message: 'Password reset successfully! You are now logged in.',
+      user: {
+        _id: user._id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        bio: user.bio,
+      },
+    });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

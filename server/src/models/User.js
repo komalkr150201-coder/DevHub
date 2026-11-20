@@ -85,6 +85,14 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpire: {
+      type: Date,
+      select: false,
+    },
   },
   {
     timestamps: true,
@@ -104,6 +112,16 @@ userSchema.methods.validatePassword = function (password) {
     .pbkdf2Sync(password, this.salt, 1000, 64, 'sha512')
     .toString('hex');
   return this.password === hash;
+};
+
+userSchema.methods.createPasswordResetToken = function () {
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  this.resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+  this.resetPasswordExpire = Date.now() + 30 * 60 * 1000; // 30 minutes
+  return resetToken;
 };
 
 export const User = mongoose.model('User', userSchema);
