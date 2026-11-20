@@ -4,6 +4,99 @@ import api from '../services/api';
 // Verified Real-World Developers Dataset from GitHub
 export const REAL_WORLD_DEVELOPERS = [
   {
+    id: "d-komalkr150201-coder",
+    name: "Komal",
+    username: "komalkr150201-coder",
+    role: "Full-Stack Developer & Software Engineer",
+    location: "India / Remote",
+    email: "komalkr150201@gmail.com",
+    avatarUrl: "https://avatars.githubusercontent.com/u/289376476?v=4",
+    open: true,
+    skills: ["JavaScript", "React", "Node.js", "Express", "MongoDB", "Python", "Git", "Tailwind CSS"],
+    repos: 5,
+    stars: 12,
+    followers: 6,
+    bio: "Full-Stack Developer and creator of DevHub, Smart Mango IoT transportation monitoring, and predictive intelligence models.",
+    links: {
+      github: "https://github.com/komalkr150201-coder",
+      website: "https://github.com/komalkr150201-coder/DevHub"
+    },
+    projects: [
+      {
+        title: "DevHub - Developer Collaboration & Matchmaking",
+        description: "Full-stack developer platform featuring mathematical skill extraction, cosine similarity & coverage matching engine, dual JWT auth with AES-256 encryption.",
+        tech: ["React", "Node.js", "Express", "MongoDB", "Vite"]
+      },
+      {
+        title: "smartmango",
+        description: "AI & IoT-based smart mango transportation monitoring system with telemetry and spoilage prediction.",
+        tech: ["Python", "IoT", "Machine Learning"]
+      }
+    ],
+    realRepos: [
+      {
+        id: 501,
+        name: "DevHub",
+        description: "Full-stack developer portfolio and collaboration matching platform with real GitHub repo extraction and AES-256 token security.",
+        language: "JavaScript",
+        langs: { JavaScript: 70, HTML: 20, CSS: 10 },
+        stars: 8,
+        forks: 3,
+        updated: "Today",
+        topics: ["react", "nodejs", "mongodb", "developer-portfolio", "matching-algorithm"],
+        pinned: true
+      },
+      {
+        id: 502,
+        name: "smartmango",
+        description: "AI & IoT-based smart mango transportation monitoring system with sensor telemetry and spoilage prediction.",
+        language: "Python",
+        langs: { Python: 85, C: 15 },
+        stars: 3,
+        forks: 1,
+        updated: "Recently",
+        topics: ["iot", "sensors", "python", "agriculture"],
+        pinned: true
+      },
+      {
+        id: 503,
+        name: "mango-intelligence",
+        description: "Predictive agricultural quality intelligence and classification models for produce freshness.",
+        language: "Python",
+        langs: { Python: 90, Shell: 10 },
+        stars: 2,
+        forks: 0,
+        updated: "Recently",
+        topics: ["machine-learning", "computer-vision", "python"],
+        pinned: true
+      },
+      {
+        id: 504,
+        name: "nodeProject",
+        description: "Scalable asynchronous backend services and middleware pipeline built with Node.js and Express.",
+        language: "JavaScript",
+        langs: { JavaScript: 95 },
+        stars: 1,
+        forks: 0,
+        updated: "Recently",
+        topics: ["nodejs", "express", "backend"],
+        pinned: false
+      },
+      {
+        id: 505,
+        name: "my_project",
+        description: "Interactive full-stack web application featuring dynamic UI components and state management.",
+        language: "JavaScript",
+        langs: { JavaScript: 80, HTML: 20 },
+        stars: 1,
+        forks: 0,
+        updated: "Recently",
+        topics: ["javascript", "web"],
+        pinned: false
+      }
+    ]
+  },
+  {
     id: "d-gaearon",
     name: "Dan Abramov",
     username: "gaearon",
@@ -530,7 +623,9 @@ export const SUGGESTED_SKILLS = [
 ];
 
 export function findDeveloperByUsername(username) {
-  return REAL_WORLD_DEVELOPERS.find((d) => d.username.toLowerCase() === username.toLowerCase());
+  if (!username) return null;
+  const clean = String(username).trim().toLowerCase().replace(/^@/, '');
+  return REAL_WORLD_DEVELOPERS.find((d) => d.username?.toLowerCase() === clean);
 }
 
 export function calculateSkillOverlap(mySkills = [], devSkills = []) {

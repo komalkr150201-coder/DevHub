@@ -326,7 +326,7 @@ export function Login() {
               🚀 Quick 1-Click Test as a Verified Real-World Developer:
             </p>
             <div className="chips">
-              {REAL_WORLD_DEVELOPERS.slice(0, 4).map((d) => (
+              {REAL_WORLD_DEVELOPERS.slice(0, 5).map((d) => (
                 <button
                   key={d.username}
                   type="button"
@@ -353,7 +353,7 @@ export function Login() {
                 <input
                   value={anyUser}
                   onChange={(e) => setAnyUser(e.target.value)}
-                  placeholder="e.g. torvalds, komal, octocat"
+                  placeholder="e.g. komalkr150201-coder, torvalds, octocat"
                   style={{ fontSize: '0.85rem' }}
                 />
                 <Button

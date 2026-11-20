@@ -56,6 +56,8 @@ export function Signup() {
     return <Navigate to="/app" replace />;
   }
 
+  const [alreadyRegisteredError, setAlreadyRegisteredError] = useState(false);
+
   const handleVerifyGitHub = async () => {
     const clean = username.trim().replace(/^@/, '');
     if (!clean) {
@@ -63,15 +65,24 @@ export function Signup() {
       return;
     }
     setVerifying(true);
-    const data = await fetchRealDeveloper(clean, githubToken.trim());
-    setVerifying(false);
-    if (data) {
-      setPreviewUser(data);
-      if (!name && data.name) setName(data.name);
-      if (!email && data.email && !data.email.includes('example.com')) setEmail(data.email);
-      toast(`Verified @${data.username} on GitHub (${data.repos} public repos)!`, "success");
-    } else {
-      toast(`Could not find GitHub user @${clean}`, "error");
+    setAlreadyRegisteredError(false);
+    try {
+      const data = await fetchRealDeveloper(clean, githubToken.trim());
+      if (data) {
+        setPreviewUser(data);
+        if (!name && data.name) setName(data.name);
+        if (!email && data.email && !data.email.includes('example.com') && !data.email.includes('devhub.dev')) {
+          setEmail(data.email);
+        }
+        const repoCount = data.repos ?? (data.realRepos ? data.realRepos.length : 0);
+        toast(`Verified @${data.username} on GitHub (${repoCount} public repos)!`, "success");
+      } else {
+        toast(`Could not find GitHub user @${clean}`, "error");
+      }
+    } catch (err) {
+      toast(`Verification error: ${err.message}`, "error");
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -88,6 +99,7 @@ export function Signup() {
     }
 
     setLoading(true);
+    setAlreadyRegisteredError(false);
     const res = await registerWithBackend({
       username: clean,
       name: name.trim() || clean,
@@ -99,6 +111,8 @@ export function Signup() {
 
     if (res?.success) {
       navigate('/app');
+    } else if (res?.error && res.error.toLowerCase().includes('already registered')) {
+      setAlreadyRegisteredError(true);
     }
   };
 
@@ -221,8 +235,9 @@ export function Signup() {
                   onChange={(e) => {
                     setUsername(e.target.value);
                     setPreviewUser(null);
+                    setAlreadyRegisteredError(false);
                   }}
-                  placeholder="e.g. gaearon, sindresorhus, komal"
+                  placeholder="e.g. komalkr150201-coder, gaearon, sindresorhus"
                   autoFocus
                 />
                 <Button
@@ -236,6 +251,34 @@ export function Signup() {
                 </Button>
               </div>
             </div>
+
+            {alreadyRegisteredError && (
+              <div
+                style={{
+                  padding: '12px 14px',
+                  background: 'rgba(56, 189, 248, 0.12)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  borderRadius: 'var(--r)',
+                  color: 'var(--sky)',
+                  fontSize: '0.88rem',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                }}
+              >
+                <span>@{username.trim().replace(/^@/, '')} is already registered!</span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => navigate('/login')}
+                >
+                  Log In Now
+                </Button>
+              </div>
+            )}
 
             {/* GitHub Preview Card if verified */}
             {previewUser && (
