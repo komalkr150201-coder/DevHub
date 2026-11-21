@@ -4,6 +4,7 @@ import { Repo } from './models/Repo.js';
 import { Skill } from './models/Skill.js';
 import { Project } from './models/Project.js';
 import { Request } from './models/Request.js';
+import { Portfolio } from './models/Portfolio.js';
 import { encryptToken } from './config/github.js';
 import { connectDB, closeDB } from './config/db.js';
 import { REAL_WORLD_DEVELOPERS } from './services/githubService.js';
@@ -16,6 +17,7 @@ export const seedDatabase = async () => {
     await Skill.deleteMany({});
     await Project.deleteMany({});
     await Request.deleteMany({});
+    await Portfolio.deleteMany({});
 
     // 1. Asha (Matches Section 11.3 worked example: React, Node.js, MongoDB, TypeScript)
     const asha = await User.create({

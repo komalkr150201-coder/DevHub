@@ -10,8 +10,9 @@ import { ToastHost } from './ToastHost';
 const NAV_ITEMS = [
   { to: "/app", label: "Dashboard", icon: "grid", end: true },
   { to: "/app/portfolio", label: "My Portfolio", icon: "briefcase" },
+  { to: "/app/generator", label: "AI Portfolio Studio", icon: "zap" },
   { to: "/app/repositories", label: "My Repositories", icon: "github" },
-  { to: "/app/skills", label: "My Skills", icon: "zap" },
+  { to: "/app/skills", label: "My Skills", icon: "code" },
   { to: "/app/developers", label: "Find Developers", icon: "users" },
   { to: "/app/requests", label: "Collaboration Requests", icon: "mail", badge: true },
   { to: "/app/settings", label: "Settings", icon: "settings" }
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
 const ROUTE_TITLES = {
   "/app": "Dashboard",
   "/app/portfolio": "My Portfolio",
+  "/app/generator": "AI Portfolio Studio",
   "/app/repositories": "My Repositories",
   "/app/skills": "My Skills",
   "/app/developers": "Find Developers",

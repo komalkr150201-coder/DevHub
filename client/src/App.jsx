@@ -13,6 +13,7 @@ import { MyRepositories } from './pages/MyRepositories';
 import { MySkills } from './pages/MySkills';
 import { FindDevelopers } from './pages/FindDevelopers';
 import { CollaborationRequests } from './pages/CollaborationRequests';
+import { PortfolioStudio } from './pages/PortfolioStudio';
 import { Settings } from './pages/Settings';
 import { PublicProfile } from './pages/PublicProfile';
 import { ResetPassword } from './pages/ResetPassword';
@@ -52,6 +53,7 @@ export function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="portfolio" element={<MyPortfolio />} />
+            <Route path="generator" element={<PortfolioStudio />} />
             <Route path="repositories" element={<MyRepositories />} />
             <Route path="skills" element={<MySkills />} />
             <Route path="developers" element={<FindDevelopers />} />

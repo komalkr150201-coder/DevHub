@@ -1,7 +1,9 @@
 
+import mongoose from 'mongoose';
 import { Request } from '../models/Request.js';
 import { User } from '../models/User.js';
 import Notification from '../models/Notification.js';
+import { fetchRealGitHubData } from '../services/githubService.js';
 
 /**
  * GET /api/requests
@@ -79,27 +81,56 @@ export const getRequests = async (req, res) => {
  */
 export const sendRequest = async (req, res) => {
   try {
-    const { receiverId, projectId, message } = req.body;
+    const { receiverId, receiverUsername, username, projectId, projectTitle, project, message } = req.body;
     const senderId = req.user._id;
 
-    // Validate required fields
-    if (!receiverId || !message?.trim()) {
+    if (!message?.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'receiverId and message are required',
+        message: 'Message is required',
       });
     }
 
-    // Prevent sending request to yourself
-    if (receiverId.toString() === senderId.toString()) {
+    const target = receiverId || receiverUsername || username;
+    if (!target) {
       return res.status(400).json({
         success: false,
-        message: 'You cannot send a collaboration request to yourself',
+        message: 'Recipient developer is required',
       });
     }
 
-    // Check recipient
-    const receiver = await User.findById(receiverId);
+    // Resolve receiver user by ObjectId or Username
+    let receiver = null;
+    if (mongoose.Types.ObjectId.isValid(target)) {
+      receiver = await User.findById(target);
+    }
+    
+    if (!receiver) {
+      const cleanTarget = String(target).toLowerCase().trim().replace(/^@/, '');
+      receiver = await User.findOne({ username: cleanTarget });
+
+      // If user doesn't exist in MongoDB yet, try auto-creating from real GitHub data
+      if (!receiver) {
+        try {
+          const ghData = await fetchRealGitHubData(cleanTarget);
+          if (ghData && ghData.username) {
+            receiver = await User.create({
+              githubId: ghData.githubId,
+              username: ghData.username,
+              name: ghData.name || ghData.username,
+              avatarUrl: ghData.avatarUrl,
+              bio: ghData.bio || '',
+              email: ghData.email || `${ghData.username}@devhub.dev`,
+              links: {
+                github: `https://github.com/${ghData.username}`,
+                website: ghData.website || '',
+              },
+              stats: ghData.stats,
+            });
+          }
+        } catch {}
+      }
+    }
 
     if (!receiver) {
       return res.status(404).json({
@@ -108,41 +139,45 @@ export const sendRequest = async (req, res) => {
       });
     }
 
+    // Prevent sending request to yourself
+    if (receiver._id.toString() === senderId.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot send a collaboration request to yourself',
+      });
+    }
+
     // Validate project if supplied
-    if (projectId) {
+    let validProjectId = null;
+    if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
       const projectExists = await Request.db
         .model('Project')
         .exists({ _id: projectId });
-
-      if (!projectExists) {
-        return res.status(404).json({
-          success: false,
-          message: 'Project not found',
-        });
+      if (projectExists) {
+        validProjectId = projectId;
       }
     }
 
     // Check duplicate pending request
     const existing = await Request.findOne({
       senderId,
-      receiverId,
-      projectId: projectId || null,
+      receiverId: receiver._id,
       status: 'pending',
     });
 
     if (existing) {
       return res.status(400).json({
         success: false,
-        message:
-          'A pending collaboration request to this developer already exists',
+        message: 'A pending collaboration request to this developer already exists',
       });
     }
 
     // Create collaboration request
     const collaborationRequest = new Request({
       senderId,
-      receiverId,
-      projectId: projectId || null,
+      receiverId: receiver._id,
+      projectId: validProjectId,
+      projectTitle: project || projectTitle || 'Collaboration',
       message: message.trim(),
       status: 'pending',
     });
@@ -159,7 +194,7 @@ export const sendRequest = async (req, res) => {
 
     // Create notification for receiver
     await Notification.create({
-      recipient: receiverId,
+      recipient: receiver._id,
       sender: senderId,
       type: 'collaboration_request',
       title: 'New Collaboration Request',
@@ -196,8 +231,10 @@ export const sendRequest = async (req, res) => {
 export const updateRequestStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    let { status } = req.body;
     const currentUserId = req.user._id;
+
+    if (status === 'rejected') status = 'declined';
 
     // Validate status
     if (!['accepted', 'declined'].includes(status)) {
@@ -272,5 +309,32 @@ export const updateRequestStatus = async (req, res) => {
       success: false,
       message: err.message,
     });
+  }
+};
+
+/**
+ * DELETE /api/requests/:id
+ * Sender can cancel their pending request
+ */
+export const cancelRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUserId = req.user._id;
+
+    const request = await Request.findOneAndDelete({
+      _id: id,
+      senderId: currentUserId,
+    });
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: 'Request not found or not authorized to cancel',
+      });
+    }
+
+    return res.json({ success: true, message: 'Collaboration request cancelled' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 };

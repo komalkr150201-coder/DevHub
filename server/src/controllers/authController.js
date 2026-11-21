@@ -118,10 +118,11 @@ export const register = async (req, res) => {
       })),
     });
 
-    sendTokenCookie(res, user._id);
+    const token = sendTokenCookie(res, user._id);
 
     return res.status(201).json({
       success: true,
+      token,
       message: `Account created for @${user.username}`,
       user: {
         _id: user._id,
@@ -195,10 +196,11 @@ export const login = async (req, res) => {
       }
     }
 
-    sendTokenCookie(res, user._id);
+    const token = sendTokenCookie(res, user._id);
 
     return res.json({
       success: true,
+      token,
       message: `Welcome back, @${user.username}!`,
       user: {
         _id: user._id,
@@ -226,7 +228,10 @@ export const login = async (req, res) => {
  */
 export const getCurrentUser = async (req, res) => {
   try {
-    const token = req.cookies?.token;
+    let token = req.cookies?.token;
+    if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
     if (!token) {
       return res.status(401).json({ success: false, message: 'Not authenticated' });
     }
@@ -500,12 +505,13 @@ export const demoLogin = async (req, res) => {
           userId: user._id,
           githubRepoId: r.id || Math.floor(Math.random() * 900000),
           name: r.name,
-          description: r.description,
+          description: r.description || '',
+          url: r.url || `https://github.com/${user.username}/${r.name}`,
           languages: Object.entries(r.langs || {}).map(([n, bytes]) => ({ name: n, bytes })),
           topics: r.topics || [],
           stars: r.stars || 0,
           forks: r.forks || 0,
-          pinned: r.pinned || false,
+          isPinned: r.pinned || false,
           pushedAt: new Date(),
         });
       }
@@ -539,10 +545,11 @@ export const demoLogin = async (req, res) => {
       }
     }
 
-    sendTokenCookie(res, user._id);
+    const token = sendTokenCookie(res, user._id);
 
     res.json({
       success: true,
+      token,
       message: `Signed in as @${user.username}`,
       user,
       repos,

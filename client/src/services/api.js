@@ -54,6 +54,21 @@ export const requestAPI = {
   getRequests: () => api.get('/api/requests'),
   sendRequest: (data) => api.post('/api/requests', data),
   updateRequestStatus: (id, status) => api.patch(`/api/requests/${id}`, { status }),
+  cancelRequest: (id) => api.delete(`/api/requests/${id}`),
+};
+
+export const portfolioAPI = {
+  get: () => api.get('/api/portfolio'),
+  update: (data) => api.put('/api/portfolio', data),
+  generate: (data) => api.post('/api/portfolio/generate', data),
+  regenerate: (data) => api.post('/api/portfolio/regenerate', data),
+  preview: (data) => api.post('/api/portfolio/preview', data),
+  exportZip: () => api.get('/api/portfolio/export', { responseType: 'blob' }),
+  checkSlug: (slug) => api.get('/api/portfolio/slug-check', { params: { slug } }),
+  publish: (slug) => api.post('/api/portfolio/publish', { slug }),
+  unpublish: () => api.post('/api/portfolio/unpublish'),
+  versions: () => api.get('/api/portfolio/versions'),
+  restore: (versionId) => api.post(`/api/portfolio/versions/${versionId}/restore`),
 };
 
 export { api };

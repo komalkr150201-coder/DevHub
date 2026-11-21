@@ -521,29 +521,29 @@ export const REAL_WORLD_DEVELOPERS = [
 export const DEVELOPERS = REAL_WORLD_DEVELOPERS;
 
 export const DEFAULT_PROFILE = {
-  name: "Dan Abramov",
-  username: "gaearon",
-  avatarUrl: "https://avatars.githubusercontent.com/u/810438?v=4",
-  headline: "Frontend Architect & React Core",
-  bio: "Working on React at Bluesky. Co-created Redux, Create React App, and React Hot Loader. Passionate about developer tooling and mental models.",
-  location: "London, UK",
-  email: "dan.abramov@gmail.com",
-  website: "https://overreacted.io",
-  followers: 84200,
-  following: 172,
-  contributions: 3840,
-  joined: "Feb 2011"
+  name: "Komal",
+  username: "komalkr150201-coder",
+  avatarUrl: "https://avatars.githubusercontent.com/u/289376476?v=4",
+  headline: "Full-Stack Developer & Software Engineer",
+  bio: "Full-Stack Developer and creator of DevHub, Smart Mango IoT transportation monitoring, and predictive intelligence models.",
+  location: "India / Remote",
+  email: "komalkr150201@gmail.com",
+  website: "https://github.com/komalkr150201-coder/DevHub",
+  followers: 6,
+  following: 12,
+  contributions: 540,
+  joined: "Feb 2024"
 };
 
 export const DEFAULT_SKILLS = [
-  { id: 1, name: "React", category: "Frontend", level: 96 },
-  { id: 2, name: "JavaScript", category: "Frontend", level: 98 },
-  { id: 3, name: "Redux", category: "Frontend", level: 98 },
-  { id: 4, name: "TypeScript", category: "Frontend", level: 88 },
-  { id: 5, name: "Node.js", category: "Backend", level: 84 },
-  { id: 6, name: "Git", category: "Tools", level: 94 },
-  { id: 7, name: "HTML", category: "Frontend", level: 92 },
-  { id: 8, name: "CSS", category: "Frontend", level: 86 }
+  { id: 1, name: "JavaScript", category: "Frontend", level: 95 },
+  { id: 2, name: "React", category: "Frontend", level: 92 },
+  { id: 3, name: "Node.js", category: "Backend", level: 90 },
+  { id: 4, name: "Express", category: "Backend", level: 88 },
+  { id: 5, name: "MongoDB", category: "Database", level: 86 },
+  { id: 6, name: "Python", category: "Backend", level: 85 },
+  { id: 7, name: "Git", category: "Tools", level: 90 },
+  { id: 8, name: "Tailwind CSS", category: "Frontend", level: 84 }
 ];
 
 export const DEFAULT_REPOS = REAL_WORLD_DEVELOPERS[0].realRepos;
@@ -551,10 +551,17 @@ export const DEFAULT_REPOS = REAL_WORLD_DEVELOPERS[0].realRepos;
 export const DEFAULT_PROJECTS = [
   {
     id: "p1",
-    title: "Bluesky React Client",
-    description: "AT Protocol social client built with React Native and modern web standards. Looking for feedback and collaborators.",
-    tech: ["React", "TypeScript", "Redux"],
-    link: "https://github.com/bluesky-social"
+    title: "DevHub - Developer Collaboration & Matchmaking",
+    description: "Full-stack developer platform featuring mathematical skill extraction, cosine similarity & coverage matching engine, dual JWT auth with AES-256 encryption.",
+    tech: ["React", "Node.js", "Express", "MongoDB", "Vite"],
+    link: "https://github.com/komalkr150201-coder/DevHub"
+  },
+  {
+    id: "p2",
+    title: "smartmango",
+    description: "AI & IoT-based smart mango transportation monitoring system with telemetry and spoilage prediction.",
+    tech: ["Python", "IoT", "Machine Learning"],
+    link: "https://github.com/komalkr150201-coder/smartmango"
   }
 ];
 
@@ -622,16 +629,25 @@ export const SUGGESTED_SKILLS = [
   { name: "Rust", category: "Backend" }
 ];
 
-export function findDeveloperByUsername(username) {
+export function findDeveloperByUsername(username, fallbackList = []) {
   if (!username) return null;
   const clean = String(username).trim().toLowerCase().replace(/^@/, '');
-  return REAL_WORLD_DEVELOPERS.find((d) => d.username?.toLowerCase() === clean);
+  const inReal = REAL_WORLD_DEVELOPERS.find((d) => d.username?.toLowerCase() === clean);
+  if (inReal) return inReal;
+  if (Array.isArray(fallbackList)) {
+    const inFallback = fallbackList.find((d) => d.username?.toLowerCase() === clean);
+    if (inFallback) return inFallback;
+  }
+  return null;
 }
 
 export function calculateSkillOverlap(mySkills = [], devSkills = []) {
-  const mySet = new Set(mySkills.map((s) => s.toLowerCase()));
-  const shared = devSkills.filter((s) => mySet.has(s.toLowerCase()));
-  const base = Math.min(mySet.size, devSkills.length) || 1;
+  const getSkillName = (s) => (typeof s === 'string' ? s : s?.name || '').toLowerCase();
+  const mySet = new Set((mySkills || []).map(getSkillName).filter(Boolean));
+  const shared = (devSkills || [])
+    .map((s) => (typeof s === 'string' ? s : s?.name || ''))
+    .filter((s) => s && mySet.has(s.toLowerCase()));
+  const base = Math.min(mySet.size, (devSkills || []).length) || 1;
   const percent = Math.min(100, Math.round((shared.length / base) * 100));
   return { shared, percent };
 }
@@ -645,29 +661,41 @@ export async function copyToClipboard(text) {
   }
 }
 
-export function getPublicProfileUrl(username) {
-  return `${window.location.origin}/u/${username}`;
+export function getPublicProfileUrl(username = '') {
+  const clean = String(username).trim().replace(/^@/, '');
+  return `${window.location.origin}/u/${clean}`;
 }
 
 // Helper to normalize repository objects for frontend consistency
 const normalizeRepoList = (reposList = [], username = '') => {
   if (!Array.isArray(reposList)) return [];
-  return reposList.map((r, i) => ({
-    id: r.githubRepoId || r.id || r._id || i + 1,
-    name: r.name,
-    description: r.description || '',
-    url: r.url || `https://github.com/${username}/${r.name}`,
-    language: r.language || r.languages?.[0]?.name || 'Code',
-    langs: r.langs || (r.languages || []).reduce(
-      (acc, l) => ({ ...acc, [l.name]: Math.round((l.bytes || 1000) / 1000) || 10 }),
-      {}
-    ),
-    stars: r.stars || 0,
-    forks: r.forks || 0,
-    topics: r.topics || [],
-    pinned: !!r.pinned || !!r.isPinned,
-    updated: r.updated || 'Recently'
-  }));
+  return reposList.map((r, i) => {
+    const firstLang = Array.isArray(r.languages) && r.languages.length
+      ? (typeof r.languages[0] === 'string' ? r.languages[0] : r.languages[0]?.name)
+      : null;
+    const language = r.language || firstLang || 'Code';
+
+    const langs = r.langs || (r.languages || []).reduce((acc, l) => {
+      const langName = typeof l === 'string' ? l : l?.name;
+      if (!langName) return acc;
+      const bytes = typeof l === 'object' && l?.bytes ? Math.round(l.bytes / 1000) : 10;
+      return { ...acc, [langName]: bytes };
+    }, {});
+
+    return {
+      id: r.githubRepoId || r.id || r._id || i + 1,
+      name: r.name,
+      description: r.description || '',
+      url: r.url || `https://github.com/${username}/${r.name}`,
+      language,
+      langs,
+      stars: r.stars || 0,
+      forks: r.forks || 0,
+      topics: r.topics || [],
+      pinned: !!r.pinned || !!r.isPinned,
+      updated: r.updated || 'Recently'
+    };
+  });
 };
 
 const AuthContext = createContext(null);
@@ -759,22 +787,22 @@ export function AuthProvider({ children }) {
 
   // Sync to local storage
   useEffect(() => {
-    try { localStorage.setItem('devhub_profile', JSON.stringify(profile)); } catch {}
+    try { localStorage.setItem('devhub_profile', JSON.stringify(profile)); } catch { }
   }, [profile]);
   useEffect(() => {
-    try { localStorage.setItem('devhub_skills', JSON.stringify(skills)); } catch {}
+    try { localStorage.setItem('devhub_skills', JSON.stringify(skills)); } catch { }
   }, [skills]);
   useEffect(() => {
-    try { localStorage.setItem('devhub_repos', JSON.stringify(repos)); } catch {}
+    try { localStorage.setItem('devhub_repos', JSON.stringify(repos)); } catch { }
   }, [repos]);
   useEffect(() => {
-    try { localStorage.setItem('devhub_projects', JSON.stringify(projects)); } catch {}
+    try { localStorage.setItem('devhub_projects', JSON.stringify(projects)); } catch { }
   }, [projects]);
   useEffect(() => {
-    try { localStorage.setItem('devhub_requests', JSON.stringify(requests)); } catch {}
+    try { localStorage.setItem('devhub_requests', JSON.stringify(requests)); } catch { }
   }, [requests]);
   useEffect(() => {
-    try { localStorage.setItem('devhub_settings', JSON.stringify(settings)); } catch {}
+    try { localStorage.setItem('devhub_settings', JSON.stringify(settings)); } catch { }
   }, [settings]);
 
   // On mount: check for active HTTP-only cookie session via /auth/me or OAuth callback
@@ -786,7 +814,7 @@ export function AuthProvider({ children }) {
       const tokenParam = urlParams.get('token');
 
       if (tokenParam) {
-        try { localStorage.setItem('devhub_token', tokenParam); } catch {}
+        try { localStorage.setItem('devhub_token', tokenParam); } catch { }
         api.defaults.headers.common['Authorization'] = `Bearer ${tokenParam}`;
       }
 
@@ -795,7 +823,7 @@ export function AuthProvider({ children }) {
         if (res.data?.success && res.data.user && isMounted) {
           const u = res.data.user;
           setAuthed(true);
-          try { localStorage.setItem('devhub_auth', '1'); } catch {}
+          try { localStorage.setItem('devhub_auth', '1'); } catch { }
 
           setProfile({
             name: u.name || u.username,
@@ -813,23 +841,7 @@ export function AuthProvider({ children }) {
           });
 
           if (Array.isArray(res.data.repos) && res.data.repos.length > 0) {
-            setRepos(
-              res.data.repos.map((r, i) => ({
-                id: r.githubRepoId || r._id || i + 1,
-                name: r.name,
-                description: r.description || '',
-                language: r.languages?.[0]?.name || 'JavaScript',
-                langs: (r.languages || []).reduce(
-                  (acc, l) => ({ ...acc, [l.name]: Math.round(l.bytes / 1000) || 10 }),
-                  {}
-                ),
-                stars: r.stars || 0,
-                forks: r.forks || 0,
-                topics: r.topics || [],
-                pinned: !!r.pinned,
-                updated: 'Recently'
-              }))
-            );
+            setRepos(normalizeRepoList(res.data.repos, u.username));
           }
 
           if (Array.isArray(res.data.skills) && res.data.skills.length > 0) {
@@ -849,7 +861,21 @@ export function AuthProvider({ children }) {
           }
         }
       } catch (err) {
-        // No active cookie session
+        if (err.response?.status === 404 || err.response?.status === 401) {
+          try {
+            localStorage.removeItem('devhub_token');
+          } catch { }
+        }
+        // If localStorage has authed flag, try restoring session with backend demo-login
+        if (localStorage.getItem('devhub_auth') === '1' && profile?.username) {
+          try {
+            const demoRes = await api.post('/auth/demo-login', { username: profile.username });
+            if (demoRes.data?.token) {
+              localStorage.setItem('devhub_token', demoRes.data.token);
+              api.defaults.headers.common['Authorization'] = `Bearer ${demoRes.data.token}`;
+            }
+          } catch { }
+        }
       }
     };
 
@@ -864,17 +890,21 @@ export function AuthProvider({ children }) {
     const loadRegistered = async () => {
       try {
         const res = await api.get('/api/search?limit=50');
-        if (res.data?.success && Array.isArray(res.data.users)) {
-          const registered = res.data.users.map((u) => ({
+        const userList = res.data?.results || res.data?.users || [];
+        if (res.data?.success && Array.isArray(userList)) {
+          const registered = userList.map((u) => ({
             id: `u-${u._id || u.username}`,
+            _id: u._id,
             name: u.name || u.username,
             username: u.username,
             role: u.bio?.slice(0, 50) || 'Full-Stack Developer',
-            location: 'Remote',
+            location: u.location || 'Remote',
             email: u.email || `${u.username}@devhub.dev`,
             avatarUrl: u.avatarUrl || `https://avatars.githubusercontent.com/${u.username}`,
             open: true,
-            skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Git'],
+            skills: Array.isArray(u.skills) && u.skills.length
+              ? u.skills.map((s) => (typeof s === 'string' ? s : s.name))
+              : ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Git'],
             repos: u.stats?.totalRepos || 1,
             stars: u.stats?.totalStars || 0,
             followers: u.stats?.followers || 0,
@@ -908,7 +938,7 @@ export function AuthProvider({ children }) {
 
   // Auth actions
   const login = useCallback(() => {
-    try { localStorage.setItem('devhub_auth', '1'); } catch {}
+    try { localStorage.setItem('devhub_auth', '1'); } catch { }
     setAuthed(true);
   }, []);
 
@@ -916,10 +946,10 @@ export function AuthProvider({ children }) {
     try {
       localStorage.removeItem('devhub_auth');
       localStorage.removeItem('devhub_token');
-    } catch {}
+    } catch { }
     delete api.defaults.headers.common['Authorization'];
     setAuthed(false);
-    api.post('/auth/logout').catch(() => {});
+    api.post('/auth/logout').catch(() => { });
   }, []);
 
   // Fetch real developer from backend or GitHub
@@ -978,7 +1008,7 @@ export function AuthProvider({ children }) {
           if (reposRes.ok) {
             try {
               ghRepos = await reposRes.json();
-            } catch {}
+            } catch { }
           }
 
           const parsedRepos = Array.isArray(ghRepos) ? ghRepos.map((r, i) => ({
@@ -1111,7 +1141,7 @@ export function AuthProvider({ children }) {
       const incomingRepos = devData.realRepos || (Array.isArray(devData.repos) ? devData.repos : []);
       if (incomingRepos.length > 0) {
         setRepos(incomingRepos);
-        try { localStorage.setItem('devhub_repos', JSON.stringify(incomingRepos)); } catch {}
+        try { localStorage.setItem('devhub_repos', JSON.stringify(incomingRepos)); } catch { }
       }
 
       if (devData.skills && devData.skills.length > 0) {
@@ -1121,7 +1151,7 @@ export function AuthProvider({ children }) {
             : { id: s.id || i + 1, name: s.name, category: s.category || 'Frontend', level: s.level || 80 }
         ));
         setSkills(mappedSkills);
-        try { localStorage.setItem('devhub_skills', JSON.stringify(mappedSkills)); } catch {}
+        try { localStorage.setItem('devhub_skills', JSON.stringify(mappedSkills)); } catch { }
       }
 
       setGithub({
@@ -1130,6 +1160,16 @@ export function AuthProvider({ children }) {
       });
 
       login();
+
+      // Establish backend session token
+      try {
+        const demoRes = await api.post('/auth/demo-login', { username: devData.username });
+        if (demoRes.data?.token) {
+          try { localStorage.setItem('devhub_token', demoRes.data.token); } catch { }
+          api.defaults.headers.common['Authorization'] = `Bearer ${demoRes.data.token}`;
+        }
+      } catch { }
+
       toast(`Imported real GitHub user @${devData.username}!`, "success");
       return true;
     } else {
@@ -1151,6 +1191,11 @@ export function AuthProvider({ children }) {
 
       if (res.data?.success) {
         const u = res.data.user;
+        if (res.data.token) {
+          try { localStorage.setItem('devhub_token', res.data.token); } catch { }
+          api.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
+        }
+
         setProfile({
           name: u.name,
           username: u.username,
@@ -1169,7 +1214,7 @@ export function AuthProvider({ children }) {
         if (res.data.repos?.length) {
           const norm = normalizeRepoList(res.data.repos, u.username);
           setRepos(norm);
-          try { localStorage.setItem('devhub_repos', JSON.stringify(norm)); } catch {}
+          try { localStorage.setItem('devhub_repos', JSON.stringify(norm)); } catch { }
         }
         if (res.data.skills?.length) {
           const mappedSkills = res.data.skills.map((s, i) => ({
@@ -1179,7 +1224,7 @@ export function AuthProvider({ children }) {
             level: s.level || s.normalizedScore || s.score || 80
           }));
           setSkills(mappedSkills);
-          try { localStorage.setItem('devhub_skills', JSON.stringify(mappedSkills)); } catch {}
+          try { localStorage.setItem('devhub_skills', JSON.stringify(mappedSkills)); } catch { }
         }
 
         login();
@@ -1199,6 +1244,11 @@ export function AuthProvider({ children }) {
       const res = await api.post('/auth/login', { identifier, password });
       if (res.data?.success) {
         const u = res.data.user;
+        if (res.data.token) {
+          try { localStorage.setItem('devhub_token', res.data.token); } catch { }
+          api.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
+        }
+
         setProfile({
           name: u.name,
           username: u.username,
@@ -1217,7 +1267,7 @@ export function AuthProvider({ children }) {
         if (res.data.repos?.length) {
           const norm = normalizeRepoList(res.data.repos, u.username);
           setRepos(norm);
-          try { localStorage.setItem('devhub_repos', JSON.stringify(norm)); } catch {}
+          try { localStorage.setItem('devhub_repos', JSON.stringify(norm)); } catch { }
         }
         if (res.data.skills?.length) {
           const mappedSkills = res.data.skills.map((s, i) => ({
@@ -1227,7 +1277,7 @@ export function AuthProvider({ children }) {
             level: s.level || s.normalizedScore || s.score || 80
           }));
           setSkills(mappedSkills);
-          try { localStorage.setItem('devhub_skills', JSON.stringify(mappedSkills)); } catch {}
+          try { localStorage.setItem('devhub_skills', JSON.stringify(mappedSkills)); } catch { }
         }
 
         login();
@@ -1242,7 +1292,7 @@ export function AuthProvider({ children }) {
   }, [login, toast]);
 
   // Switch between real developers
-  const switchUser = useCallback((username) => {
+  const switchUser = useCallback(async (username) => {
     const found = REAL_WORLD_DEVELOPERS.find((d) => d.username.toLowerCase() === username.toLowerCase());
     if (found) {
       setProfile({
@@ -1268,9 +1318,24 @@ export function AuthProvider({ children }) {
           level: 95 - i * 4
         }))
       );
+      if (found.projects) {
+        setProjects(found.projects.map((p, i) => ({ id: `p${i + 1}`, ...p })));
+      }
+
+      login();
+
+      // Establish backend session
+      try {
+        const res = await api.post('/auth/demo-login', { username: found.username });
+        if (res.data?.token) {
+          try { localStorage.setItem('devhub_token', res.data.token); } catch { }
+          api.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
+        }
+      } catch { }
+
       toast(`Switched active profile to @${found.username}`, "info");
     }
-  }, [toast]);
+  }, [login, toast]);
 
   // Profile
   const updateProfile = useCallback(async (updates) => {
@@ -1293,20 +1358,28 @@ export function AuthProvider({ children }) {
       return false;
     }
     const newSkill = { id: Date.now(), ...skill };
-    setSkills((prev) => [...prev, newSkill]);
+    const updated = [...skills, newSkill];
+    setSkills(updated);
+    api.put('/api/skills', { skills: updated }).catch(() => { });
     toast(`Added ${skill.name}`, "success");
     return true;
   }, [skills, toast]);
 
   const updateSkill = useCallback((id, updates) => {
-    setSkills((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, ...updates } : s))
-    );
+    setSkills((prev) => {
+      const updated = prev.map((s) => (s.id === id ? { ...s, ...updates } : s));
+      api.put('/api/skills', { skills: updated }).catch(() => { });
+      return updated;
+    });
     toast("Skill updated", "success");
   }, [toast]);
 
   const removeSkill = useCallback((id) => {
-    setSkills((prev) => prev.filter((s) => s.id !== id));
+    setSkills((prev) => {
+      const updated = prev.filter((s) => s.id !== id);
+      api.put('/api/skills', { skills: updated }).catch(() => { });
+      return updated;
+    });
     toast("Skill removed", "info");
   }, [toast]);
 
@@ -1317,6 +1390,7 @@ export function AuthProvider({ children }) {
         if (r.id === id) {
           const pinned = !r.pinned;
           toast(pinned ? `Pinned ${r.name}` : `Unpinned ${r.name}`, "info");
+          api.patch(`/api/repos/${id}`, { isPinned: pinned }).catch(() => { });
           return { ...r, pinned };
         }
         return r;
@@ -1327,7 +1401,7 @@ export function AuthProvider({ children }) {
   const syncRepos = useCallback(async () => {
     try {
       toast(`Syncing live repositories for @${profile.username}...`, "info");
-      
+
       let res = null;
       try {
         res = await api.post('/api/sync');
@@ -1346,22 +1420,10 @@ export function AuthProvider({ children }) {
       const fetchedStats = res?.data?.user?.stats || res?.data?.data?.stats;
 
       if (fetchedRepos.length > 0) {
-        const formatted = fetchedRepos.map((r, i) => ({
-          id: r.id || r.githubRepoId || i + 1,
-          name: r.name,
-          description: r.description || '',
-          url: r.url || `https://github.com/${profile.username}/${r.name}`,
-          language: r.language || r.languages?.[0]?.name || 'Code',
-          langs: r.langs || (r.languages || []).reduce((acc, l) => ({ ...acc, [l.name]: Math.round(l.bytes / 1000) || 10 }), {}),
-          stars: r.stars || 0,
-          forks: r.forks || 0,
-          topics: r.topics || [],
-          pinned: !!r.pinned || !!r.isPinned,
-          updated: r.updated || 'Just now'
-        }));
+        const formatted = normalizeRepoList(fetchedRepos, profile.username);
 
         setRepos(formatted);
-        try { localStorage.setItem('devhub_repos', JSON.stringify(formatted)); } catch {}
+        try { localStorage.setItem('devhub_repos', JSON.stringify(formatted)); } catch { }
 
         if (fetchedSkills.length > 0) {
           const formattedSkills = fetchedSkills.map((s, i) => ({
@@ -1371,7 +1433,7 @@ export function AuthProvider({ children }) {
             level: s.level || s.normalizedScore || 80
           }));
           setSkills(formattedSkills);
-          try { localStorage.setItem('devhub_skills', JSON.stringify(formattedSkills)); } catch {}
+          try { localStorage.setItem('devhub_skills', JSON.stringify(formattedSkills)); } catch { }
         }
 
         if (fetchedStats) {
@@ -1406,39 +1468,152 @@ export function AuthProvider({ children }) {
     toast("Project removed", "info");
   }, [toast]);
 
+  // Collaboration Requests API sync
+  const fetchRequests = useCallback(async () => {
+    try {
+      const res = await api.get('/api/requests');
+      if (res.data?.success) {
+        const incoming = (res.data.incoming || []).map((r) => {
+          const partner = r.senderId;
+          const partnerUsername = partner?.username || 'developer';
+          return {
+            id: r._id,
+            direction: 'received',
+            username: partnerUsername,
+            sender: partner,
+            project: r.projectTitle || r.projectId?.title || 'Collaboration',
+            message: r.message,
+            status: r.status === 'declined' ? 'rejected' : r.status,
+            time: new Date(r.createdAt).toLocaleDateString(),
+            createdAt: r.createdAt,
+          };
+        });
+
+        const outgoing = (res.data.outgoing || []).map((r) => {
+          const partner = r.receiverId;
+          const partnerUsername = partner?.username || 'developer';
+          return {
+            id: r._id,
+            direction: 'sent',
+            username: partnerUsername,
+            receiver: partner,
+            project: r.projectTitle || r.projectId?.title || 'Collaboration',
+            message: r.message,
+            status: r.status === 'declined' ? 'rejected' : r.status,
+            time: new Date(r.createdAt).toLocaleDateString(),
+            createdAt: r.createdAt,
+          };
+        });
+
+        const all = [...incoming, ...outgoing].sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+
+        setRequests(all);
+        try { localStorage.setItem('devhub_requests', JSON.stringify(all)); } catch { }
+        return all;
+      }
+    } catch (err) {
+      // If error or unauthenticated, keep local state
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authed) {
+      fetchRequests();
+    }
+  }, [authed, fetchRequests]);
+
   // Collaboration Requests
-  const sendRequest = useCallback((dev, message, projectTitle) => {
+  const sendRequest = useCallback(async (dev, message, projectTitle) => {
+    const tempId = `r${Date.now()}`;
     const newReq = {
-      id: `r${Date.now()}`,
+      id: tempId,
       direction: "sent",
       username: dev.username,
+      receiver: dev,
       project: projectTitle || "Collaboration",
       message,
       status: "pending",
-      time: "Just now"
+      time: "Just now",
+      createdAt: new Date().toISOString()
     };
     setRequests((prev) => [newReq, ...prev]);
-    toast(`Request sent to @${dev.username}!`, "success");
-  }, [toast]);
 
-  const respondToRequest = useCallback((id, status) => {
+    try {
+      const payload = {
+        receiverUsername: dev.username,
+        message,
+        projectTitle: projectTitle || 'Collaboration',
+      };
+      if (dev._id && /^[a-f0-9]{24}$/i.test(String(dev._id))) {
+        payload.receiverId = dev._id;
+      }
+      const res = await api.post('/api/requests', payload);
+      if (res.data?.success && res.data.request) {
+        setRequests((prev) =>
+          prev.map((r) =>
+            r.id === tempId ? { ...r, id: res.data.request._id } : r
+          )
+        );
+      }
+      toast(`Collaboration request sent to @${dev.username}!`, "success");
+      await fetchRequests();
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message;
+      toast(msg, "error");
+      setRequests((prev) => prev.filter((r) => r.id !== tempId));
+    }
+  }, [fetchRequests, toast]);
+
+  const respondToRequest = useCallback(async (id, status) => {
+    const backendStatus = status === 'rejected' ? 'declined' : status;
     setRequests((prev) =>
       prev.map((r) => (r.id === id ? { ...r, status } : r))
     );
-    toast(
-      status === 'accepted' ? "Collaboration accepted!" : "Request rejected",
-      status === 'accepted' ? "success" : "info"
-    );
-  }, [toast]);
 
-  const cancelRequest = useCallback((id) => {
+    try {
+      if (!String(id).startsWith('r')) {
+        await api.patch(`/api/requests/${id}`, { status: backendStatus });
+      }
+      toast(
+        status === 'accepted' ? "Collaboration accepted!" : "Request rejected",
+        status === 'accepted' ? "success" : "info"
+      );
+      await fetchRequests();
+    } catch (err) {
+      toast(err.response?.data?.message || "Failed to update request", "error");
+      await fetchRequests();
+    }
+  }, [fetchRequests, toast]);
+
+  const cancelRequest = useCallback(async (id) => {
     setRequests((prev) => prev.filter((r) => r.id !== id));
-    toast("Request cancelled", "info");
-  }, [toast]);
+    try {
+      if (!String(id).startsWith('r')) {
+        await api.delete(`/api/requests/${id}`);
+      }
+      toast("Request cancelled", "info");
+      await fetchRequests();
+    } catch (err) {
+      toast(err.response?.data?.message || "Failed to cancel request", "error");
+      await fetchRequests();
+    }
+  }, [fetchRequests, toast]);
 
   // Settings
-  const saveSettings = useCallback((newSettings) => {
+  const saveSettings = useCallback(async (newSettings) => {
     setSettings(newSettings);
+    try {
+      await api.patch('/api/me', {
+        privacy: {
+          profileVisibility: newSettings.visibility || 'public',
+          showEmail: !!newSettings.showEmail,
+          showSkillLevels: !!newSettings.showSkillLevels,
+          openToCollaborate: !!newSettings.openToCollab,
+        }
+      });
+    } catch { }
     toast("Settings saved", "success");
   }, [toast]);
 
@@ -1469,6 +1644,7 @@ export function AuthProvider({ children }) {
     addProject,
     removeProject,
     requests,
+    fetchRequests,
     sendRequest,
     respondToRequest,
     cancelRequest,

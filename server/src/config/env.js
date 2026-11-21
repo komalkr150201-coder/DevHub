@@ -28,5 +28,10 @@ export const config = {
     callbackUrl: process.env.GITHUB_CALLBACK_URL || `http://localhost:${port}/auth/github/callback`,
     scopes: ['read:user', 'user:email', 'public_repo'],
   },
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY || '',
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  },
+  publicBaseUrl: process.env.PORTFOLIO_PUBLIC_URL || '',
   syncIntervalHours: parseInt(process.env.SYNC_INTERVAL_HOURS, 10) || 6,
 };

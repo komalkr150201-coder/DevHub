@@ -14,7 +14,9 @@ import matchRoutes from './routes/match.js';
 import projectRoutes from './routes/projects.js';
 import requestRoutes from './routes/requests.js';
 import notificationRoutes from "./routes/notifications.js";
+import portfolioRoutes from './routes/portfolio.js';
 import { renderPublicProfileOg } from './controllers/userController.js';
+import { servePublicPortfolio } from './controllers/portfolioController.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -93,6 +95,10 @@ app.use('/api', matchRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/requests', requestRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use('/api/portfolio', portfolioRoutes);
+
+// Public published portfolio (falls through to next() if not published)
+app.get('/u/:username', servePublicPortfolio);
 
 // Public profile Open Graph endpoint for SEO sharing (/:username)
 app.get('/:username', renderPublicProfileOg);

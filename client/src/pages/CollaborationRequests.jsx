@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useAuth,
@@ -18,8 +18,14 @@ const STATUS_TONES = {
 };
 
 export function CollaborationRequests() {
-  const { requests, respondToRequest, cancelRequest } = useAuth();
+  const { requests, respondToRequest, cancelRequest, fetchRequests } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (fetchRequests) {
+      fetchRequests();
+    }
+  }, [fetchRequests]);
 
   const [directionTab, setDirectionTab] = useState('received');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -95,11 +101,14 @@ export function CollaborationRequests() {
         <div className="req-list">
           {filteredList.map((req) => {
             const dev = findDeveloperByUsername(req.username);
-            const displayName = dev ? dev.name : req.username;
+            const partner = req.direction === 'received' ? req.sender : req.receiver;
+            const displayName = partner?.name || dev?.name || req.username;
+            const avatarUrl = partner?.avatarUrl || dev?.avatarUrl || `https://avatars.githubusercontent.com/${req.username}`;
+            const partnerEmail = partner?.email || dev?.email;
 
             return (
               <article key={req.id} className="card req">
-                <Avatar name={displayName} avatarUrl={dev?.avatarUrl || req.sender?.avatarUrl || `https://avatars.githubusercontent.com/${req.username}`} size={48} />
+                <Avatar name={displayName} avatarUrl={avatarUrl} size={48} />
 
                 <div className="grow">
                   <div className="row gap wrap">
@@ -144,15 +153,15 @@ export function CollaborationRequests() {
                     </>
                   )}
 
-                  {directionTab === 'received' && req.status === 'accepted' && dev && (
+                  {directionTab === 'received' && req.status === 'accepted' && partnerEmail && (
                     <Button
                       size="sm"
                       icon="mail"
                       onClick={() => {
-                        window.location.href = `mailto:${dev.email}`;
+                        window.location.href = `mailto:${partnerEmail}`;
                       }}
                     >
-                      Email {dev.name.split(' ')[0]}
+                      Email {displayName.split(' ')[0]}
                     </Button>
                   )}
 

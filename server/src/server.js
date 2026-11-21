@@ -47,6 +47,11 @@ const startServer = async () => {
 
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
+    process.once('SIGUSR2', () => {
+      server.close(() => {
+        process.kill(process.pid, 'SIGUSR2');
+      });
+    });
   } catch (err) {
     console.error('Fatal error starting server:', err);
     process.exit(1);

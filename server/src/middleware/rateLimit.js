@@ -32,3 +32,13 @@ export const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// Gemini calls cost money: limit per authenticated user (falls back to IP)
+export const aiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: parseInt(process.env.AI_RATE_LIMIT_PER_HOUR, 10) || 15,
+  keyGenerator: (req) => (req.user?._id ? String(req.user._id) : req.ip),
+  message: { success: false, message: 'AI generation limit reached (per hour). Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});

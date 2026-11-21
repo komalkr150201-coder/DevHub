@@ -20,7 +20,10 @@ test.before(async () => {
 });
 
 test.after(async () => {
-  if (server) server.close();
+  if (server) {
+    if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
+    server.close();
+  }
   await closeDB();
 });
 

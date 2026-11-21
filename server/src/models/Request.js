@@ -19,6 +19,11 @@ const requestSchema = new mongoose.Schema(
       ref: 'Project',
       default: null,
     },
+    projectTitle: {
+      type: String,
+      default: 'Collaboration',
+      trim: true,
+    },
     message: {
       type: String,
       required: true,
@@ -27,7 +32,7 @@ const requestSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'accepted', 'declined'],
+      enum: ['pending', 'accepted', 'declined', 'rejected'],
       default: 'pending',
       index: true,
     },

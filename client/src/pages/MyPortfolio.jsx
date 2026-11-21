@@ -219,15 +219,66 @@ export function MyPortfolio() {
         title="My Portfolio"
         text="Edit what visitors see on your public profile."
         actions={
-          <Button
-            variant="secondary"
-            icon="eye"
-            onClick={() => navigate(`/u/${profile.username}`)}
-          >
-            Preview public page
-          </Button>
+          <div className="row gap">
+            <Button
+              icon="zap"
+              onClick={() => navigate('/app/generator')}
+            >
+              AI Portfolio Studio
+            </Button>
+            <Button
+              variant="secondary"
+              icon="eye"
+              onClick={() => navigate(`/u/${profile.username}`)}
+            >
+              Preview public page
+            </Button>
+          </div>
         }
       />
+
+      {/* AI Portfolio Studio Spotlight Banner */}
+      <div
+        className="card row between wrap gap"
+        style={{
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(168,85,247,0.12))',
+          border: '1px solid rgba(99,102,241,0.25)',
+          padding: '1.25rem 1.5rem',
+          borderRadius: 12,
+          marginBottom: '1.5rem',
+          alignItems: 'center',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 10,
+              background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontSize: '1.25rem',
+              flexShrink: 0,
+            }}
+          >
+            ⚡
+          </div>
+          <div>
+            <strong style={{ fontSize: '0.98rem', display: 'block', color: 'var(--text)' }}>
+              AI Portfolio Generator & Studio
+            </strong>
+            <span className="muted small">
+              Generate an interactive, published portfolio website with custom themes and downloadable source code from your GitHub repositories.
+            </span>
+          </div>
+        </div>
+        <Button icon="zap" onClick={() => navigate('/app/generator')}>
+          Launch AI Studio
+        </Button>
+      </div>
 
       {/* Hidden File Input for Avatar Upload */}
       <input
