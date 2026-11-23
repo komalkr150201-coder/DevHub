@@ -71,6 +71,7 @@ const userSchema = new mongoose.Schema(
       contributionStreak: { type: Number, default: 0 },
       recentCommits: { type: Number, default: 0 },
     },
+    
     privacy: {
       isPublic: { type: Boolean, default: true },
       showPrivateRepos: { type: Boolean, default: false },
@@ -99,6 +100,8 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+
+
 userSchema.methods.setPassword = function (password) {
   this.salt = crypto.randomBytes(16).toString('hex');
   this.password = crypto
@@ -114,6 +117,7 @@ userSchema.methods.validatePassword = function (password) {
   return this.password === hash;
 };
 
+
 userSchema.methods.createPasswordResetToken = function () {
   const resetToken = crypto.randomBytes(32).toString('hex');
   this.resetPasswordToken = crypto
@@ -123,5 +127,6 @@ userSchema.methods.createPasswordResetToken = function () {
   this.resetPasswordExpire = Date.now() + 30 * 60 * 1000; // 30 minutes
   return resetToken;
 };
+
 
 export const User = mongoose.model('User', userSchema);
