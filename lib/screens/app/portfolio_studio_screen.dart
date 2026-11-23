@@ -52,7 +52,6 @@ class _PortfolioStudioScreenState extends State<PortfolioStudioScreen> {
       final bgRes = await api.getGitHubBackground();
       githubBackground = bgRes;
     } catch (e) {
-      // Fallback local structures if API is offline
       githubBackground = {
         'education': [
           {
@@ -86,6 +85,12 @@ class _PortfolioStudioScreenState extends State<PortfolioStudioScreen> {
     if (chosen != null && mounted) {
       setState(() => selectedTemplate = chosen);
     }
+  }
+
+  Future<void> _downloadPortfolioZip() async {
+    final api = context.read<DevHubApi>();
+    final exportUrl = '${api.baseUrl}/api/portfolio/export';
+    await launchExternalUrl(exportUrl);
   }
 
   TemplateDesign get _currentTemplateObj {
@@ -353,11 +358,15 @@ class _PortfolioStudioScreenState extends State<PortfolioStudioScreen> {
                             ? Map<String, dynamic>.from(res['portfolio'])
                             : res;
                       });
+
+                      // Trigger system download automatically when generated!
+                      await _downloadPortfolioZip();
+
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              'Generated portfolio using "${_currentTemplateObj.name}" design!',
+                              'Generated portfolio using "${_currentTemplateObj.name}" design! Downloading portfolio zip file...',
                             ),
                           ),
                         );
@@ -379,7 +388,18 @@ class _PortfolioStudioScreenState extends State<PortfolioStudioScreen> {
 
           if (generateResult != null) ...[
             const SizedBox(height: 20),
-            SectionTitle('Generated Portfolio Output (${_currentTemplateObj.name})'),
+            SectionTitle(
+              'Generated Portfolio Output (${_currentTemplateObj.name})',
+              trailing: ElevatedButton.icon(
+                icon: const Icon(Icons.download_rounded, size: 16),
+                label: const Text('Download ZIP'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.violet,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: _downloadPortfolioZip,
+              ),
+            ),
             const SizedBox(height: 10),
             Panel(
               child: Column(
@@ -442,7 +462,24 @@ class _PortfolioStudioScreenState extends State<PortfolioStudioScreen> {
                         ),
                       );
                     }),
+                    const Divider(height: 24),
                   ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.download, size: 18),
+                      label: const Text('Download Portfolio Package (.zip)'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.violet,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _downloadPortfolioZip,
+                    ),
+                  ),
                 ],
               ),
             ),
