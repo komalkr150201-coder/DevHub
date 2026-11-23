@@ -707,6 +707,69 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+
+  // Dynamic portfolio link and email dispatch handler
+  document.querySelectorAll('.btn-send-email').forEach((btn) => {
+    btn.addEventListener('click', function(e) {
+      const email = this.getAttribute('data-email');
+      if (!email) return;
+      const name = this.getAttribute('data-name') || 'Developer';
+      const slug = this.getAttribute('data-slug') || '';
+      
+      let origin = window.location.origin;
+      try {
+        if (window.parent && window.parent !== window && window.parent.location?.origin) {
+          origin = window.parent.location.origin;
+        }
+      } catch (_) {}
+
+      const isBlankOrPreview = window.location.href.includes('about:') || window.location.href.startsWith('data:');
+      const url = slug ? (origin + '/u/' + slug) : (!isBlankOrPreview ? window.location.href : (origin + '/u/' + (slug || 'portfolio')));
+      const dlUrl = slug ? (origin + '/u/' + slug + '/download') : '';
+
+      const subject = encodeURIComponent('Developer Portfolio - ' + name);
+      let bodyText = 'Hi,\\n\\nHere is my developer portfolio link:\\n' + url + '\\n\\nYou can explore my projects, technical skills, and experience, and download the full portfolio package.\\n';
+      if (dlUrl) {
+        bodyText += '\\nDownload portfolio: ' + dlUrl + '\\n';
+      }
+      bodyText += '\\nLooking forward to connecting!\\n\\nBest regards,\\n' + name;
+      
+      const dynamicHref = 'mailto:' + email + '?subject=' + subject + '&body=' + encodeURIComponent(bodyText);
+      this.href = dynamicHref;
+
+      // Communicate to parent window if inside preview iframe
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'DEVHUB_SEND_EMAIL', href: dynamicHref, url: url }, '*');
+        }
+      } catch (_) {}
+    });
+  });
+
+  // Dynamic download handler
+  document.querySelectorAll('.btn-download-portfolio').forEach((btn) => {
+    btn.addEventListener('click', function(e) {
+      const slug = this.getAttribute('data-slug') || '';
+      let origin = window.location.origin;
+      try {
+        if (window.parent && window.parent !== window && window.parent.location?.origin) {
+          origin = window.parent.location.origin;
+        }
+      } catch (_) {}
+
+      if (slug) {
+        this.href = origin + '/u/' + slug + '/download';
+      }
+
+      // If running inside preview iframe, notify parent to trigger direct export
+      try {
+        if (window.parent && window.parent !== window) {
+          e.preventDefault();
+          window.parent.postMessage({ type: 'DEVHUB_DOWNLOAD_PORTFOLIO', slug: slug }, '*');
+        }
+      } catch (_) {}
+    });
+  });
 });
 `;
 }
@@ -725,6 +788,28 @@ export function renderHtml(portfolio = {}, { inline = false } = {}) {
   const projects = (portfolio.projects || []).filter((pr) => pr.visible !== false);
   const education = portfolio.education || [];
   const experience = portfolio.experience || [];
+
+  const slug = portfolio.slug || '';
+  const hostBase = portfolio.publicBaseUrl || '';
+  const portfolioUrl = hostBase ? `${hostBase}/u/${slug || ''}` : (slug ? `/u/${slug}` : '');
+  const downloadUrl = hostBase ? `${hostBase}/u/${slug || ''}/download` : (slug ? `/u/${slug}/download` : '');
+
+  const mailSubject = `Developer Portfolio - ${name}`;
+  const mailBody = `Hi,
+
+Here is my developer portfolio link:
+${portfolioUrl || 'Portfolio link'}
+
+You can explore my featured projects, technical skills, and experience, and download the full portfolio package.
+${downloadUrl ? `Direct Download: ${downloadUrl}\n` : ''}
+Looking forward to connecting!
+
+Best regards,
+${name}`;
+
+  const mailtoHref = email
+    ? `mailto:${email}?subject=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`
+    : '';
 
   const styleTag = inline
     ? `<style>${renderCss(portfolio)}</style>`
@@ -765,7 +850,8 @@ export function renderHtml(portfolio = {}, { inline = false } = {}) {
         ${bio ? `<div class="bio">${bio}</div>` : ''}
         
         <div class="links">
-          ${email ? `<a href="mailto:${email}" class="btn btn-primary">Get in Touch</a>` : ''}
+          ${email ? `<a href="${mailtoHref}" class="btn btn-primary btn-send-email" data-email="${email}" data-name="${name}" data-slug="${escapeHtml(slug)}" target="_blank" rel="noopener noreferrer">Get in Touch</a>` : ''}
+          <a href="${downloadUrl || '#'}" class="btn btn-download-portfolio" data-slug="${escapeHtml(slug)}" download="${slug || 'portfolio'}.zip">Download Portfolio</a>
           ${links.github ? `<a href="${escapeHtml(links.github)}" target="_blank" rel="noopener noreferrer" class="btn">GitHub</a>` : ''}
           ${links.linkedin ? `<a href="${escapeHtml(links.linkedin)}" target="_blank" rel="noopener noreferrer" class="btn">LinkedIn</a>` : ''}
           ${links.twitter ? `<a href="${escapeHtml(links.twitter)}" target="_blank" rel="noopener noreferrer" class="btn">Twitter/X</a>` : ''}
@@ -840,7 +926,8 @@ export function renderHtml(portfolio = {}, { inline = false } = {}) {
         <h2 class="section-title" style="justify-content: center;"><span>Let's Build Something Together</span></h2>
         <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Have a project in mind or interested in collaborating? Feel free to reach out.</p>
         <div class="links" style="justify-content: center;">
-          ${email ? `<a href="mailto:${email}" class="btn btn-primary">Send Email</a>` : ''}
+          ${email ? `<a href="${mailtoHref}" class="btn btn-primary btn-send-email" data-email="${email}" data-name="${name}" data-slug="${escapeHtml(slug)}" target="_blank" rel="noopener noreferrer">Send Email</a>` : ''}
+          <a href="${downloadUrl || '#'}" class="btn btn-download-portfolio" data-slug="${escapeHtml(slug)}" download="${slug || 'portfolio'}.zip">Download Portfolio</a>
           ${links.github ? `<a href="${escapeHtml(links.github)}" target="_blank" rel="noopener noreferrer" class="btn">GitHub</a>` : ''}
           ${links.linkedin ? `<a href="${escapeHtml(links.linkedin)}" target="_blank" rel="noopener noreferrer" class="btn">LinkedIn</a>` : ''}
         </div>

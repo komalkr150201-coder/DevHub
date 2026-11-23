@@ -29,11 +29,48 @@ const fail = (res, err) => res.status(err.status || 400).json({ success: false, 
 
 const getOrCreate = async (user) => {
   let p = await Portfolio.findOne({ owner: user._id });
+  const defaultEmail = user.email || '';
+  const defaultGithub = user.links?.github || (user.username ? `https://github.com/${user.username}` : '');
+  const defaultLinkedin = user.links?.linkedin || (user.username ? `https://www.linkedin.com/in/${user.username}` : '');
+
   if (!p) {
     p = await Portfolio.create({
       owner: user._id,
-      profile: { name: user.name || user.username, headline: user.headline || '', bio: user.bio || '', email: user.privacy?.showEmail ? user.email : '', avatarUrl: user.avatarUrl, links: { github: user.links?.github || `https://github.com/${user.username}`, linkedin: user.links?.linkedin || '', twitter: user.links?.twitter || '', website: user.links?.website || '' } },
+      profile: {
+        name: user.name || user.username,
+        headline: user.headline || '',
+        bio: user.bio || '',
+        email: defaultEmail,
+        avatarUrl: user.avatarUrl,
+        links: {
+          github: defaultGithub,
+          linkedin: defaultLinkedin,
+          twitter: user.links?.twitter || '',
+          website: user.links?.website || ''
+        }
+      },
     });
+  } else {
+    let changed = false;
+    if (!p.profile.email && defaultEmail) {
+      p.profile.email = defaultEmail;
+      changed = true;
+    }
+    if (!p.profile.links) {
+      p.profile.links = {};
+      changed = true;
+    }
+    if (!p.profile.links.github && defaultGithub) {
+      p.profile.links.github = defaultGithub;
+      changed = true;
+    }
+    if (!p.profile.links.linkedin && defaultLinkedin) {
+      p.profile.links.linkedin = defaultLinkedin;
+      changed = true;
+    }
+    if (changed) {
+      await p.save();
+    }
   }
   return p;
 };
@@ -67,6 +104,21 @@ export const updateMyPortfolio = async (req, res) => {
       else p[k] = v;
     }
     await p.save();
+
+    // Keep user document email and linkedin in sync
+    let userChanged = false;
+    if (patch.profile?.email && patch.profile.email !== req.user.email) {
+      req.user.email = patch.profile.email;
+      userChanged = true;
+    }
+    if (patch.profile?.links?.linkedin && patch.profile.links.linkedin !== req.user.links?.linkedin) {
+      req.user.links = { ...req.user.links, linkedin: patch.profile.links.linkedin };
+      userChanged = true;
+    }
+    if (userChanged) {
+      await req.user.save();
+    }
+
     res.json({ success: true, portfolio: view(p, req) });
   } catch (err) {
     fail(res, err);
@@ -83,15 +135,14 @@ export const generatePortfolio = async (req, res) => {
     const repoIds = Array.isArray(req.body.repoIds) ? req.body.repoIds.filter((x) => /^[a-f0-9]{24}$/.test(String(x))).slice(0, 8) : [];
     if (!repoIds.length) return res.status(400).json({ success: false, message: 'Select 1-8 repositories.' });
     const extra = userInfo(req.body.userInfo);
-    if (!extra.education.length || !extra.experience.length) {
-      try {
-        const bg = await extractGitHubBackground(req.user, repoIds);
-        if (!extra.education.length && bg.education?.length) extra.education = bg.education;
-        if (!extra.experience.length && bg.experience?.length) extra.experience = bg.experience;
-        if (!extra.skills.length && bg.skills?.length) extra.skills = bg.skills;
-      } catch (bgErr) {
-        console.warn('[GeneratePortfolio] Could not auto-extract GitHub background:', bgErr.message);
-      }
+    let bg = null;
+    try {
+      bg = await extractGitHubBackground(req.user, repoIds);
+      if (!extra.education.length && bg?.education?.length) extra.education = bg.education;
+      if (!extra.experience.length && bg?.experience?.length) extra.experience = bg.experience;
+      if (!extra.skills.length && bg?.skills?.length) extra.skills = bg.skills;
+    } catch (bgErr) {
+      console.warn('[GeneratePortfolio] Could not auto-extract GitHub background:', bgErr.message);
     }
     const evidence = await buildEvidence(req.user, repoIds, extra);
     const ai = await generateWithGemini({ section: 'all', evidence, instruction: req.body.instruction });
@@ -141,6 +192,13 @@ export const generatePortfolio = async (req, res) => {
 
     if (extra.education.length) p.education = extra.education;
     if (extra.experience.length) p.experience = extra.experience;
+    if (bg?.linkedin && (!p.profile.links?.linkedin || p.profile.links.linkedin.includes('example.com'))) {
+      if (!p.profile.links) p.profile.links = {};
+      p.profile.links.linkedin = bg.linkedin;
+    }
+    if (bg?.email && (!p.profile.email || p.profile.email.endsWith('@devhub.dev') || p.profile.email.endsWith('@example.com'))) {
+      p.profile.email = bg.email;
+    }
     if (['aurora', 'minimal', 'terminal', 'cyberpunk'].includes(req.body.template)) p.template = req.body.template;
     p.generatedFrom = { repoIds: repos.map((r) => r.githubRepoId), at: new Date() };
     await p.save();
@@ -286,5 +344,31 @@ export const servePublicPortfolio = async (req, res, next) => {
     res.send(renderHtml(p.toObject(), { inline: true }));
   } catch (err) {
     next(err);
+  }
+};
+
+/** Public endpoint to download published portfolio zip */
+export const downloadPublicPortfolioZip = async (req, res) => {
+  try {
+    const slug = String(req.params.username || '').toLowerCase();
+    let p = await Portfolio.findOne({ slug });
+    if (!p) {
+      const user = await User.findOne({ username: slug });
+      if (user) {
+        p = await Portfolio.findOne({ owner: user._id });
+      }
+    }
+    if (!p) {
+      return res.status(404).send('Portfolio not found.');
+    }
+    const zip = buildPortfolioZip(exportFiles(p));
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${p.slug || slug}-portfolio.zip"`,
+      'Content-Length': zip.length,
+    });
+    res.send(zip);
+  } catch (err) {
+    res.status(500).send('Error generating zip: ' + err.message);
   }
 };

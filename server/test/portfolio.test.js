@@ -219,3 +219,44 @@ test('7. GET /api/portfolio/export returns valid ZIP archive', async () => {
   assert.strictEqual(view[0], 0x50);
   assert.strictEqual(view[1], 0x4b);
 });
+
+test('8. Auto-fetches LinkedIn & email, and renders Send Email link with portfolio link and Download button', async () => {
+  // Test github-background returns email and linkedin
+  const bgRes = await fetch(`${baseUrl}/api/portfolio/github-background`, {
+    headers: { Cookie: authCookie },
+  });
+  const bgData = await bgRes.json();
+  assert.ok(bgData.success);
+  assert.ok(bgData.linkedin, 'Should auto-fetch or construct linkedin URL');
+  assert.ok(bgData.email, 'Should auto-fetch user email');
+
+  // Test live preview contains Send Email with mailto and Download Portfolio
+  const prevRes = await fetch(`${baseUrl}/api/portfolio/preview`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Cookie: authCookie,
+    },
+    body: JSON.stringify({
+      profile: {
+        name: 'Asha Sharma',
+        email: 'asha@example.com',
+        links: { linkedin: 'https://linkedin.com/in/ashasharma' }
+      }
+    }),
+  });
+  const prevData = await prevRes.json();
+  assert.ok(prevData.success);
+  assert.ok(prevData.html.includes('btn-send-email'), 'Preview should contain Send Email button');
+  assert.ok(prevData.html.includes('mailto:asha@example.com'), 'Send Email should target selected email');
+  assert.ok(prevData.html.includes('btn-download-portfolio'), 'Should include Download Portfolio button');
+
+  // Test public download endpoint without auth
+  const dlRes = await fetch(`${baseUrl}/u/asha-rocks/download`);
+  assert.strictEqual(dlRes.status, 200, 'Public download should succeed');
+  assert.strictEqual(dlRes.headers.get('content-type'), 'application/zip');
+  const dlBuffer = await dlRes.arrayBuffer();
+  const dlView = new Uint8Array(dlBuffer);
+  assert.strictEqual(dlView[0], 0x50);
+  assert.strictEqual(dlView[1], 0x4b);
+});

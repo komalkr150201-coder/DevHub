@@ -49,16 +49,6 @@ const fetchProfileReadme = async (octokit, username) => {
  * Deterministic / heuristic parser for GitHub profile, README, and repos
  */
 const heuristicBackgroundExtraction = (user, profileReadme, repos, existingPortfolio) => {
-  // If user already had education or experience in their saved portfolio, prioritize it
-  if (existingPortfolio?.education?.length > 0 || existingPortfolio?.experience?.length > 0) {
-    return {
-      education: existingPortfolio.education || [],
-      experience: existingPortfolio.experience || [],
-      skills: existingPortfolio.skills || [],
-      source: 'saved_portfolio',
-    };
-  }
-
   const bio = user.bio || '';
   const reposList = Array.isArray(repos) ? repos : [];
   const topLangs = [
@@ -68,6 +58,46 @@ const heuristicBackgroundExtraction = (user, profileReadme, repos, existingPortf
       )
     ),
   ].slice(0, 5);
+
+  // Extract LinkedIn URL from README, bio, or user links
+  let linkedin = user.links?.linkedin || '';
+  if (!linkedin && profileReadme) {
+    const liMatch = profileReadme.match(/https?:\/\/(?:[a-zA-Z0-9-]+\.)?linkedin\.com\/in\/[a-zA-Z0-9_\-\.%]+/i);
+    if (liMatch) linkedin = liMatch[0];
+  }
+  if (!linkedin && bio) {
+    const liBioMatch = bio.match(/https?:\/\/(?:[a-zA-Z0-9-]+\.)?linkedin\.com\/in\/[a-zA-Z0-9_\-\.%]+/i);
+    if (liBioMatch) linkedin = liBioMatch[0];
+  }
+  if (!linkedin && user.username) {
+    linkedin = `https://www.linkedin.com/in/${user.username}`;
+  }
+
+  // Extract Email from user profile, README, or bio
+  let email = user.email || '';
+  if ((!email || email.endsWith('@devhub.dev') || email.endsWith('@example.com')) && profileReadme) {
+    const emailMatch = profileReadme.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+    if (emailMatch) email = emailMatch[0];
+  }
+  if ((!email || email.endsWith('@devhub.dev') || email.endsWith('@example.com')) && bio) {
+    const emailBioMatch = bio.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+    if (emailBioMatch) email = emailBioMatch[0];
+  }
+  if (!email && user.email) {
+    email = user.email;
+  }
+
+  // If user already had education or experience in their saved portfolio, prioritize it
+  if (existingPortfolio?.education?.length > 0 || existingPortfolio?.experience?.length > 0) {
+    return {
+      education: existingPortfolio.education || [],
+      experience: existingPortfolio.experience || [],
+      skills: existingPortfolio.skills || [],
+      linkedin,
+      email,
+      source: 'saved_portfolio',
+    };
+  }
 
   const education = [];
   const experience = [];
@@ -156,6 +186,8 @@ const heuristicBackgroundExtraction = (user, profileReadme, repos, existingPortf
     education,
     experience,
     skills: topLangs,
+    linkedin,
+    email,
     source: 'github_profile_heuristic',
   };
 };
@@ -189,7 +221,7 @@ export const extractGitHubBackground = async (user, repoIds = []) => {
     return heuristic;
   }
 
-  // Use Gemini to intelligently extract and polish education and experience
+  // Use Gemini to intelligently extract and polish education, experience, linkedin, and email
   try {
     const repoSummary = repos.map((r) => {
       const langs = (r.languages || []).map((l) => (typeof l === 'string' ? l : l?.name)).filter(Boolean).join(', ');
@@ -197,12 +229,15 @@ export const extractGitHubBackground = async (user, repoIds = []) => {
     }).join('\n');
 
     const prompt = `You are an elite developer career and resume parsing assistant.
-Analyze this developer's GitHub information, profile README, bio, and repositories to extract factual or realistically grounded Education and Experience entries.
+Analyze this developer's GitHub information, profile README, bio, and repositories to extract factual or realistically grounded Education, Experience, LinkedIn profile URL, and Email address.
 Do NOT leave education or experience empty. If specific universities or companies are not mentioned in the README, synthesize realistic, modern, impressive education (e.g. Computer Science degree) and engineering experience (e.g. Full-Stack Developer, Open-Source Contributor) aligned with their GitHub projects and tech stack.
+For linkedin, extract any LinkedIn profile URL found in the profile README, bio, or return "${heuristic.linkedin || `https://www.linkedin.com/in/${user.username}`}".
+For email, extract any email or Gmail found in the profile README, bio, or return "${heuristic.email || user.email || ''}".
 
 Developer GitHub Info:
 - Username: ${user.username}
 - Name: ${user.name || user.username}
+- Email: ${user.email || 'None'}
 - Bio: ${user.bio || 'Developer on GitHub'}
 - Profile README:
 ${profileReadme || 'No profile README found'}
@@ -227,7 +262,9 @@ Return ONLY a valid JSON object (no markdown, no backticks, no preamble) strictl
       "summary": "1-2 impactful sentences detailing technical achievements and tech stack"
     }
   ],
-  "skills": ["JavaScript", "React", "Node.js"]
+  "skills": ["JavaScript", "React", "Node.js"],
+  "linkedin": "https://www.linkedin.com/in/username",
+  "email": "user@gmail.com"
 }`;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.gemini.model || 'gemini-2.5-flash'}:generateContent?key=${config.gemini.apiKey}`;
@@ -255,6 +292,8 @@ Return ONLY a valid JSON object (no markdown, no backticks, no preamble) strictl
         education: Array.isArray(parsed.education) && parsed.education.length ? parsed.education : heuristic.education,
         experience: Array.isArray(parsed.experience) && parsed.experience.length ? parsed.experience : heuristic.experience,
         skills: Array.isArray(parsed.skills) && parsed.skills.length ? parsed.skills : heuristic.skills,
+        linkedin: parsed.linkedin || heuristic.linkedin,
+        email: parsed.email || heuristic.email,
         source: 'gemini_ai_extracted',
       };
     }

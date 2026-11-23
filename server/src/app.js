@@ -16,7 +16,7 @@ import requestRoutes from './routes/requests.js';
 import notificationRoutes from "./routes/notifications.js";
 import portfolioRoutes from './routes/portfolio.js';
 import { renderPublicProfileOg } from './controllers/userController.js';
-import { servePublicPortfolio } from './controllers/portfolioController.js';
+import { servePublicPortfolio, downloadPublicPortfolioZip } from './controllers/portfolioController.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -97,7 +97,8 @@ app.use('/api/requests', requestRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 
-// Public published portfolio (falls through to next() if not published)
+// Public published portfolio download and viewing (falls through to next() if not published)
+app.get('/u/:username/download', downloadPublicPortfolioZip);
 app.get('/u/:username', servePublicPortfolio);
 
 // Public profile Open Graph endpoint for SEO sharing (/:username)

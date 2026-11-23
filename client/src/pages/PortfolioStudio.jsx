@@ -78,7 +78,7 @@ function ImportWizard({
     }
   }, [repos]);
 
-  // Automatically fetch education and experience from GitHub
+  // Automatically fetch education, experience, and socials from GitHub
   const fetchGitHubBackground = useCallback(async (forced = false) => {
     setFetchingBg(true);
     try {
@@ -89,10 +89,12 @@ function ImportWizard({
           education: res.data.education?.length ? res.data.education : prev.education,
           experience: res.data.experience?.length ? res.data.experience : prev.experience,
           skills: prev.skills || (res.data.skills || []).join(', '),
+          linkedin: res.data.linkedin || prev.linkedin,
+          email: res.data.email || prev.email,
         }));
         setBgFetched(true);
         if (forced) {
-          toast('Refreshed education & experience from GitHub!', 'success');
+          toast('Refreshed background & socials from GitHub!', 'success');
         }
       }
     } catch (e) {
@@ -292,6 +294,8 @@ function ImportWizard({
                 skills: extra.skills.split(',').map((s) => s.trim()).filter(Boolean),
                 education: extra.education,
                 experience: extra.experience,
+                linkedin: extra.linkedin,
+                email: extra.email,
               },
             })
           }
@@ -338,7 +342,7 @@ function Preview({ draft }) {
         ) : (
           <iframe
             title="Portfolio preview"
-            sandbox="allow-scripts allow-popups allow-forms"
+            sandbox="allow-scripts allow-popups allow-forms allow-same-origin allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
             srcDoc={html}
             style={{ width, maxWidth: '100%', height: 640, border: 0, background: '#0b0d14' }}
           />
@@ -402,6 +406,47 @@ function Editor({ portfolio, setPortfolio, toast, onRegenerateAll }) {
   const loadVersions = () => run('ver', async () => setVersions((await portfolioAPI.versions()).data.versions));
   const restore = (id) => run('restore', async () => { const r = await portfolioAPI.restore(id); setPortfolio(r.data.portfolio); }, 'Version restored');
 
+  // Handle Send Email and Download clicks from the live preview iframe
+  useEffect(() => {
+    const handleFrameMessage = (e) => {
+      if (e.data?.type === 'DEVHUB_SEND_EMAIL' && e.data.href) {
+        if (e.data.url) {
+          navigator.clipboard?.writeText?.(e.data.url).catch(() => {});
+        }
+        window.location.href = e.data.href;
+        toast('Opening email client with your portfolio link...', 'success');
+      } else if (e.data?.type === 'DEVHUB_DOWNLOAD_PORTFOLIO') {
+        download();
+      }
+    };
+    window.addEventListener('message', handleFrameMessage);
+    return () => window.removeEventListener('message', handleFrameMessage);
+  }, [toast, download]);
+
+  const [syncingSocials, setSyncingSocials] = useState(false);
+  const syncSocials = () => run('sync-soc', async () => {
+    setSyncingSocials(true);
+    try {
+      const res = await portfolioAPI.getGitHubBackground([]);
+      let updated = false;
+      const newProfile = { ...draft.profile, links: { ...draft.profile.links } };
+      if (res.data?.email && (!newProfile.email || newProfile.email.includes('devhub.dev') || newProfile.email.includes('example.com'))) {
+        newProfile.email = res.data.email;
+        updated = true;
+      }
+      if (res.data?.linkedin && !newProfile.links.linkedin) {
+        newProfile.links.linkedin = res.data.linkedin;
+        updated = true;
+      }
+      if (updated) {
+        change({ profile: newProfile });
+      }
+      return res;
+    } finally {
+      setSyncingSocials(false);
+    }
+  }, 'Social links auto-fetched');
+
   const RegenBtn = ({ section, name }) => (
     <Button size="sm" variant="secondary" icon="zap" loading={busyKey === `r-${section}-${name || ''}`} onClick={() => regen(section, name)}>
       Regenerate
@@ -441,7 +486,12 @@ function Editor({ portfolio, setPortfolio, toast, onRegenerateAll }) {
                 <Input id="p-skills" value={draft.skills.join(', ')} onChange={(v) => change({ skills: v.split(',').map((s) => s.trim()).filter(Boolean) })} />
               </FormField>
               <div className="row end"><RegenBtn section="skills" /></div>
-              <h4>Contact & social</h4>
+              <div className="row between" style={{ alignItems: 'center', marginTop: '16px', marginBottom: '8px' }}>
+                <h4 style={{ margin: 0 }}>Contact & social</h4>
+                <Button size="sm" variant="secondary" icon="sync" loading={syncingSocials} onClick={syncSocials}>
+                  Auto-fetch socials
+                </Button>
+              </div>
               <Row>
                 <FormField label="Email" id="p-mail"><Input id="p-mail" type="email" value={p.email} onChange={(v) => setProfile('email', v)} /></FormField>
                 <FormField label="Website" id="p-web"><Input id="p-web" value={p.links.website} onChange={(v) => setLink('website', v)} /></FormField>
@@ -630,6 +680,21 @@ export function PortfolioStudio() {
       const [me, pf] = await Promise.all([userAPI.getMe(), portfolioAPI.get()]);
       setRepos((me.data.repos || []).filter((r) => !r.isHidden));
       const p = pf.data.portfolio;
+      const u = me.data?.user || {};
+
+      // Auto-fetch and fill email and linkedin if missing
+      if (p?.profile) {
+        if (!p.profile.email && u.email) {
+          p.profile.email = u.email;
+        }
+        if (!p.profile.links) p.profile.links = {};
+        if (!p.profile.links.github && u.username) {
+          p.profile.links.github = u.links?.github || `https://github.com/${u.username}`;
+        }
+        if (!p.profile.links.linkedin) {
+          p.profile.links.linkedin = u.links?.linkedin || (u.username ? `https://www.linkedin.com/in/${u.username}` : '');
+        }
+      }
       if (location.state?.selectedTemplate && p) {
         p.template = location.state.selectedTemplate;
       } else if (p?.template) {
