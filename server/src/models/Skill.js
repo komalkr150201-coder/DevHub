@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+
 const skillItemSchema = new mongoose.Schema(
   {
     name: {
@@ -43,7 +44,9 @@ const skillSchema = new mongoose.Schema(
   }
 );
 
+
 // Multikey index on skills.name for fast candidate lookup during matching
 skillSchema.index({ 'skills.name': 1 });
+
 
 export const Skill = mongoose.model('Skill', skillSchema);
