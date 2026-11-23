@@ -1,6 +1,7 @@
 
 import mongoose from "mongoose";
 
+
 const notificationSchema = new mongoose.Schema(
     {
         recipient: {
@@ -28,6 +29,7 @@ const notificationSchema = new mongoose.Schema(
             required: true
         },
 
+        
         title: {
             type: String,
             required: true
@@ -52,7 +54,9 @@ const notificationSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+
 notificationSchema.index({ recipient: 1, createdAt: -1 });
+
 
 export default mongoose.model(
     "Notification",
