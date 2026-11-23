@@ -159,31 +159,32 @@ export const sendRequest = async (req, res) => {
       }
     }
 
-    // Check duplicate pending request
+    // Check existing request to update or create
     const existing = await Request.findOne({
       senderId,
       receiverId: receiver._id,
-      status: 'pending',
     });
 
+    let collaborationRequest;
     if (existing) {
-      return res.status(400).json({
-        success: false,
-        message: 'A pending collaboration request to this developer already exists',
+      existing.message = message.trim();
+      existing.projectTitle = project || projectTitle || 'Collaboration';
+      if (validProjectId) existing.projectId = validProjectId;
+      existing.status = 'pending';
+      existing.updatedAt = new Date();
+      await existing.save();
+      collaborationRequest = existing;
+    } else {
+      collaborationRequest = new Request({
+        senderId,
+        receiverId: receiver._id,
+        projectId: validProjectId,
+        projectTitle: project || projectTitle || 'Collaboration',
+        message: message.trim(),
+        status: 'pending',
       });
+      await collaborationRequest.save();
     }
-
-    // Create collaboration request
-    const collaborationRequest = new Request({
-      senderId,
-      receiverId: receiver._id,
-      projectId: validProjectId,
-      projectTitle: project || projectTitle || 'Collaboration',
-      message: message.trim(),
-      status: 'pending',
-    });
-
-    await collaborationRequest.save();
 
     // Get sender information for notification
     const sender = await User.findById(senderId).select(

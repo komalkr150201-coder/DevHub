@@ -1,13 +1,26 @@
-import nodemailer from 'nodemailer';
+let nodemailer = null;
+const loadNodemailer = async () => {
+  if (nodemailer) return nodemailer;
+  try {
+    const mod = await import('nodemailer');
+    nodemailer = mod.default || mod;
+    return nodemailer;
+  } catch (err) {
+    console.warn('[EmailService] nodemailer not installed or unavailable, using console fallback.');
+    return null;
+  }
+};
 
 let transporter = null;
 
 const getTransporter = async () => {
   if (transporter) return transporter;
+  const mailerLib = await loadNodemailer();
+  if (!mailerLib) return null;
 
   // 1. Configured SMTP host
   if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-    transporter = nodemailer.createTransport({
+    transporter = mailerLib.createTransport({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT || '587', 10),
       secure: process.env.SMTP_SECURE === 'true',
@@ -21,7 +34,7 @@ const getTransporter = async () => {
 
   // 2. Direct Gmail / service transport if EMAIL_USER and EMAIL_PASS set
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    transporter = nodemailer.createTransport({
+    transporter = mailerLib.createTransport({
       service: process.env.EMAIL_SERVICE || 'gmail',
       auth: {
         user: process.env.EMAIL_USER,
@@ -33,8 +46,8 @@ const getTransporter = async () => {
 
   // 3. Fallback: Create Ethereal test account automatically for local development
   try {
-    const testAccount = await nodemailer.createTestAccount();
-    transporter = nodemailer.createTransport({
+    const testAccount = await mailerLib.createTestAccount();
+    transporter = mailerLib.createTransport({
       host: 'smtp.ethereal.email',
       port: 587,
       secure: false,
@@ -115,10 +128,15 @@ export const sendCollaborationEmail = async ({
       });
 
       console.log(`[EmailService] Collaboration email sent to ${toEmail}. Message ID: ${info.messageId}`);
-      const previewUrl = nodemailer.getTestMessageUrl(info);
-      if (previewUrl) {
-        console.log(`[EmailService] ✉️ Ethereal Live Email Preview: ${previewUrl}`);
-      }
+      let previewUrl = null;
+      try {
+        if (nodemailer && typeof nodemailer.getTestMessageUrl === 'function') {
+          previewUrl = nodemailer.getTestMessageUrl(info);
+          if (previewUrl) {
+            console.log(`[EmailService] ✉️ Ethereal Live Email Preview: ${previewUrl}`);
+          }
+        }
+      } catch (_) {}
       return { success: true, messageId: info.messageId, previewUrl };
     } else {
       console.log(`[EmailService] [CONSOLE DISPATCH] To: ${toEmail} | Subject: ${subject}\nBody: ${textContent}`);
@@ -181,7 +199,12 @@ export const sendRequestDecisionEmail = async ({
         text: textContent,
         html: htmlContent,
       });
-      const previewUrl = nodemailer.getTestMessageUrl(info);
+      let previewUrl = null;
+      try {
+        if (nodemailer && typeof nodemailer.getTestMessageUrl === 'function') {
+          previewUrl = nodemailer.getTestMessageUrl(info);
+        }
+      } catch (_) {}
       return { success: true, messageId: info.messageId, previewUrl };
     }
   } catch (err) {

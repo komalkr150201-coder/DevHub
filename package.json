@@ -7,7 +7,7 @@
     "server": "npm run dev --prefix server",
     "client": "npm run dev --prefix client",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "clean": "lsof -ti :5001 -ti :5173 | xargs kill -9 2>/dev/null || true",
+    "clean": "node -e \"const { execSync } = require('child_process'); try { if (process.platform === 'win32') { execSync('powershell -NoProfile -Command \\\"Get-NetTCPConnection -LocalPort 5001,5173 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\\\"'); } else { execSync('lsof -ti :5001 -ti :5173 | xargs kill -9 2>/dev/null || true'); } } catch (_) {}\"",
     "seed": "npm run seed --prefix server",
     "build": "npm run build --prefix client",
     "start": "npm start --prefix server"
