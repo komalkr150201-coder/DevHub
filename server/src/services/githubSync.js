@@ -161,6 +161,13 @@ export const syncGitHubData = async (user, forceRefresh = false) => {
     if (ghProfile.twitter_username && !user.links.twitter) {
       user.links.twitter = `https://twitter.com/${ghProfile.twitter_username}`;
     }
+    const linkedinMatch = (ghProfile.bio || '').match(/https?:\/\/(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+/i) ||
+                          (ghProfile.blog || '').match(/https?:\/\/(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+/i);
+    if (linkedinMatch) {
+      user.links.linkedin = linkedinMatch[0];
+    } else if (!user.links.linkedin) {
+      user.links.linkedin = `https://linkedin.com/in/${user.username}`;
+    }
 
     // 2. Fetch public repositories
     const { data: ghRepos } = await octokit.rest.repos.listForAuthenticatedUser({

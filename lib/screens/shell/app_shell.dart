@@ -216,19 +216,59 @@ class _AppShellState extends State<AppShell> {
           if (i == 4) {
             showModalBottomSheet(
               context: context,
+              isScrollControlled: true,
               backgroundColor: AppColors.bg2,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
               builder: (ctx) => SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(
-                    labels.length,
-                    (j) => ListTile(
-                      leading: Icon(icons[j], color: AppColors.muted),
-                      title: Text(labels[j]),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        setTab(j);
-                      },
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(ctx).size.height * 0.7,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: AppColors.line,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Flexible(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: labels.length,
+                            itemBuilder: (context, j) => ListTile(
+                              leading: Icon(
+                                icons[j],
+                                color: index == j
+                                    ? AppColors.violet
+                                    : AppColors.muted,
+                              ),
+                              title: Text(
+                                labels[j],
+                                style: TextStyle(
+                                  fontWeight: index == j
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  color:
+                                      index == j ? Colors.white : AppColors.muted,
+                                ),
+                              ),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                setTab(j);
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

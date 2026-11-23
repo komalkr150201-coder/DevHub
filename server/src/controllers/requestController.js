@@ -4,6 +4,7 @@ import { Request } from '../models/Request.js';
 import { User } from '../models/User.js';
 import Notification from '../models/Notification.js';
 import { fetchRealGitHubData } from '../services/githubService.js';
+import { sendCollaborationEmail, sendRequestDecisionEmail } from '../services/emailService.js';
 
 /**
  * GET /api/requests
@@ -202,6 +203,17 @@ export const sendRequest = async (req, res) => {
       link: '/app/requests',
     });
 
+    // Send email notification to receiver's registered email
+    if (receiver.email) {
+      sendCollaborationEmail({
+        toEmail: receiver.email,
+        receiverName: receiver.name || receiver.username,
+        senderName,
+        message: message.trim(),
+        projectTitle: project || projectTitle || 'DevHub Collaboration',
+      }).catch((err) => console.error('[RequestController] Email dispatch failed:', err.message));
+    }
+
     // Populate receiver for response
     await collaborationRequest.populate(
       'receiverId',
@@ -296,6 +308,17 @@ export const updateRequestStatus = async (req, res) => {
         : `${receiverName} declined your collaboration request.`,
       link: '/app/requests',
     });
+
+    // Send email decision update to original sender's registered email
+    if (collaborationRequest.senderId?.email) {
+      sendRequestDecisionEmail({
+        toEmail: collaborationRequest.senderId.email,
+        senderName: collaborationRequest.senderId.name || collaborationRequest.senderId.username,
+        responderName: receiverName,
+        status: accepted ? 'accepted' : 'declined',
+        projectTitle: collaborationRequest.projectTitle || collaborationRequest.projectId?.title || 'DevHub Collaboration',
+      }).catch((err) => console.error('[RequestController] Decision email failed:', err.message));
+    }
 
     return res.json({
       success: true,

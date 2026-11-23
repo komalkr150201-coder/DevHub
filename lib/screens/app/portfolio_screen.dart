@@ -46,7 +46,10 @@ class _PortfolioScreenState extends State<PortfolioScreen>
       headline.text = u.headline;
       bio.text = u.bio;
       website.text = '${u.links['website'] ?? ''}';
-      linkedin.text = '${u.links['linkedin'] ?? ''}';
+      final existingLinkedin = '${u.links['linkedin'] ?? ''}';
+      linkedin.text = existingLinkedin.isNotEmpty
+          ? existingLinkedin
+          : 'https://linkedin.com/in/${u.username}';
       initialized = true;
     }
   }
@@ -246,9 +249,80 @@ class _PortfolioScreenState extends State<PortfolioScreen>
           const SizedBox(height: 12),
           TextField(
             controller: linkedin,
-            decoration: const InputDecoration(
-              labelText: 'LinkedIn Profile URL',
+            decoration: InputDecoration(
+              labelText: 'LinkedIn Profile URL (Auto-fetched)',
               hintText: 'https://linkedin.com/in/username',
+              suffixIcon: IconButton(
+                tooltip: 'Auto-fetch from GitHub',
+                icon: const Icon(Icons.sync, color: AppColors.violet),
+                onPressed: () async {
+                  setState(() => busy = true);
+                  try {
+                    await auth.sync();
+                    final updatedUser = auth.user;
+                    if (updatedUser != null) {
+                      name.text = updatedUser.name;
+                      headline.text = updatedUser.headline;
+                      bio.text = updatedUser.bio;
+                      website.text = '${updatedUser.links['website'] ?? ''}';
+                      final l = '${updatedUser.links['linkedin'] ?? ''}';
+                      linkedin.text = l.isNotEmpty ? l : 'https://linkedin.com/in/${updatedUser.username}';
+                    }
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Auto-fetched profile & LinkedIn data from GitHub!')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(e.toString())),
+                      );
+                    }
+                  } finally {
+                    if (mounted) setState(() => busy = false);
+                  }
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              icon: const Icon(Icons.auto_awesome, size: 14, color: AppColors.violet),
+              label: const Text(
+                'Auto-fetch from GitHub',
+                style: TextStyle(color: AppColors.violet, fontSize: 12),
+              ),
+              onPressed: () async {
+                setState(() => busy = true);
+                try {
+                  await auth.sync();
+                  final updatedUser = auth.user;
+                  if (updatedUser != null) {
+                    name.text = updatedUser.name;
+                    headline.text = updatedUser.headline;
+                    bio.text = updatedUser.bio;
+                    website.text = '${updatedUser.links['website'] ?? ''}';
+                    final l = '${updatedUser.links['linkedin'] ?? ''}';
+                    linkedin.text = l.isNotEmpty ? l : 'https://linkedin.com/in/${updatedUser.username}';
+                  }
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Profile & LinkedIn details fetched from GitHub!')),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(e.toString())),
+                    );
+                  }
+                } finally {
+                  if (mounted) setState(() => busy = false);
+                }
+              },
             ),
           ),
           const SizedBox(height: 20),

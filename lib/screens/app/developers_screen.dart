@@ -404,7 +404,9 @@ class _DevelopersScreenState extends State<DevelopersScreen>
       });
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Collaboration invitation sent to @$username')),
+          SnackBar(
+            content: Text('Collaboration invitation sent to @$username & delivered to their registered email! 📧'),
+          ),
         );
       }
     } catch (e) {

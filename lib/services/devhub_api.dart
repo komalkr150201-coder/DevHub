@@ -177,6 +177,9 @@ class DevHubApi {
 
   Future<Map<String, dynamic>> portfolio() async => Map<String, dynamic>.from(await _request('GET', '/api/portfolio'));
 
+  Future<Map<String, dynamic>> getGitHubBackground() async =>
+      Map<String, dynamic>.from(await _request('GET', '/api/portfolio/github-background'));
+
   Future<Map<String, dynamic>> savePortfolio(Map<String, dynamic> data) async =>
       Map<String, dynamic>.from(await _request('PUT', '/api/portfolio', body: data));
 
