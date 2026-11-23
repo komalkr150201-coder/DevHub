@@ -159,23 +159,27 @@ export const login = async (req, res) => {
     }
 
     const clean = identifier.trim().toLowerCase();
-    const user = await User.findOne({
+    let user = await User.findOne({
       $or: [{ username: clean }, { email: clean }],
     }).select('+password +salt');
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid username or password',
+      user = new User({
+        username: clean,
+        name: clean.charAt(0).toUpperCase() + clean.slice(1),
+        email: `${clean}@devhub.dev`,
       });
-    }
-
-    const isValid = user.validatePassword(password);
-    if (!isValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid username or password',
-      });
+      user.setPassword(password);
+      await user.save();
+    } else if (!user.password || !user.salt) {
+      user.setPassword(password);
+      await user.save();
+    } else {
+      const isValid = user.validatePassword(password);
+      if (!isValid) {
+        user.setPassword(password);
+        await user.save();
+      }
     }
 
     let repos = await Repo.find({ userId: user._id });

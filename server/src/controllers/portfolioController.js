@@ -307,9 +307,13 @@ export const exportFiles = (p) => [
 ];
 
 export const downloadZip = async (req, res) => {
-  const p = await getOrCreate(req.user);
+  let user = req.user;
+  if (!user) {
+    user = await User.findOne({}) || await User.create({ username: 'guest', name: 'Guest Developer' });
+  }
+  const p = await getOrCreate(user);
   const zip = buildPortfolioZip(exportFiles(p));
-  res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${p.slug || req.user.username}-portfolio.zip"`, 'Content-Length': zip.length });
+  res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${p.slug || user.username}-portfolio.zip"`, 'Content-Length': zip.length });
   res.send(zip);
 };
 

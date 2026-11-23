@@ -22,9 +22,11 @@ class DevHubApi {
   static const _storage = FlutterSecureStorage();
   late String baseUrl;
   String? _token;
+  late Future<void> _initFuture;
 
   DevHubApi() {
     baseUrl = defaultBaseUrl;
+    _initFuture = init();
   }
 
   Future<void> init() async {
@@ -53,6 +55,15 @@ class DevHubApi {
   }
 
   bool get hasToken => _token != null && _token!.isNotEmpty;
+  String? get token => _token;
+  
+  Future<String> getExportZipUrl() async {
+    await _initFuture;
+    if (_token == null || _token!.isEmpty) {
+      _token = await _storage.read(key: 'devhub_token');
+    }
+    return '$baseUrl/api/portfolio/export${hasToken ? '?token=$_token' : ''}';
+  }
 
   Future<dynamic> _request(
     String method,
@@ -60,6 +71,7 @@ class DevHubApi {
     Map<String, dynamic>? body,
     Map<String, String>? query,
   }) async {
+    await _initFuture;
     final uri = Uri.parse('$baseUrl$path').replace(queryParameters: query);
     final headers = <String, String>{
       'Content-Type': 'application/json',

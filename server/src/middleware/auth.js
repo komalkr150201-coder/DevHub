@@ -14,6 +14,17 @@ export const requireAuth = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
     }
 
+    if (!token && req.query?.token) {
+      token = req.query.token;
+    }
+
+    if (!token && req.url) {
+      try {
+        const queryParams = new URL(req.url, 'http://localhost').searchParams;
+        token = queryParams.get('token');
+      } catch (_) {}
+    }
+
     if (!token) {
       return res.status(401).json({
         success: false,
@@ -56,6 +67,16 @@ export const optionalAuth = async (req, res, next) => {
     let token = req.cookies?.token;
     if (!token && req.headers.authorization?.startsWith('Bearer ')) {
       token = req.headers.authorization.split(' ')[1];
+    }
+    if (!token && req.query?.token) {
+      token = req.query.token;
+    }
+
+    if (!token && req.url) {
+      try {
+        const queryParams = new URL(req.url, 'http://localhost').searchParams;
+        token = queryParams.get('token');
+      } catch (_) {}
     }
 
     if (token) {

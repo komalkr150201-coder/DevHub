@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:provider/provider.dart';
 import '../../services/devhub_api.dart';
 import '../../core/app_theme.dart';
@@ -89,8 +93,40 @@ class _PortfolioStudioScreenState extends State<PortfolioStudioScreen> {
 
   Future<void> _downloadPortfolioZip() async {
     final api = context.read<DevHubApi>();
-    final exportUrl = '${api.baseUrl}/api/portfolio/export';
-    await launchExternalUrl(exportUrl);
+    try {
+      if (kIsWeb) {
+        await api.init();
+        final token = api.token;
+        final headers = <String, String>{};
+        if (token != null && token.isNotEmpty) {
+          headers['Authorization'] = 'Bearer $token';
+        }
+        final exportUrl = '${api.baseUrl}/api/portfolio/export';
+        final response = await http.get(Uri.parse(exportUrl), headers: headers);
+        if (response.statusCode == 200) {
+          final blob = html.Blob([response.bodyBytes], 'application/zip');
+          final blobUrl = html.Url.createObjectUrlFromBlob(blob);
+          final anchor = html.AnchorElement(href: blobUrl)
+            ..setAttribute('download', 'portfolio.zip')
+            ..click();
+          html.Url.revokeObjectUrl(blobUrl);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Portfolio ZIP downloaded successfully!')),
+            );
+          }
+          return;
+        }
+      }
+      final url = await api.getExportZipUrl();
+      await launchExternalUrl(url);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to download portfolio: $e')),
+        );
+      }
+    }
   }
 
   TemplateDesign get _currentTemplateObj {
