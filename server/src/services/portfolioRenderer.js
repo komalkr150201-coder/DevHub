@@ -723,14 +723,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } catch (_) {}
 
+      // If running on localhost / 127.0.0.1, replace with the computer's network IP so mobile phones and devices on Wi-Fi can open it
+      const networkIp = this.getAttribute('data-network-ip') || '';
+      if ((origin.includes('localhost') || origin.includes('127.0.0.1')) && networkIp && networkIp !== '127.0.0.1') {
+        const port = window.location.port ? (':' + window.location.port) : ':5173';
+        origin = window.location.protocol + '//' + networkIp + port;
+      }
+
       const isBlankOrPreview = window.location.href.includes('about:') || window.location.href.startsWith('data:');
-      const url = slug ? (origin + '/u/' + slug) : (!isBlankOrPreview ? window.location.href : (origin + '/u/' + (slug || 'portfolio')));
+      const url = slug ? (origin + '/u/' + slug) : (!isBlankOrPreview && !window.location.href.includes('localhost') ? window.location.href : (origin + '/u/' + (slug || 'portfolio')));
       const dlUrl = slug ? (origin + '/u/' + slug + '/download') : '';
 
       const subject = encodeURIComponent('Developer Portfolio - ' + name);
       let bodyText = 'Hi,\\n\\nHere is my developer portfolio link:\\n' + url + '\\n\\nYou can explore my projects, technical skills, and experience, and download the full portfolio package.\\n';
       if (dlUrl) {
-        bodyText += '\\nDownload portfolio: ' + dlUrl + '\\n';
+        bodyText += '\\nDirect Download: ' + dlUrl + '\\n';
       }
       bodyText += '\\nLooking forward to connecting!\\n\\nBest regards,\\n' + name;
       
@@ -756,6 +763,12 @@ document.addEventListener('DOMContentLoaded', () => {
           origin = window.parent.location.origin;
         }
       } catch (_) {}
+
+      const networkIp = this.getAttribute('data-network-ip') || '';
+      if ((origin.includes('localhost') || origin.includes('127.0.0.1')) && networkIp && networkIp !== '127.0.0.1') {
+        const port = window.location.port ? (':' + window.location.port) : ':5173';
+        origin = window.location.protocol + '//' + networkIp + port;
+      }
 
       if (slug) {
         this.href = origin + '/u/' + slug + '/download';
@@ -850,8 +863,8 @@ ${name}`;
         ${bio ? `<div class="bio">${bio}</div>` : ''}
         
         <div class="links">
-          ${email ? `<a href="${mailtoHref}" class="btn btn-primary btn-send-email" data-email="${email}" data-name="${name}" data-slug="${escapeHtml(slug)}" target="_blank" rel="noopener noreferrer">Get in Touch</a>` : ''}
-          <a href="${downloadUrl || '#'}" class="btn btn-download-portfolio" data-slug="${escapeHtml(slug)}" download="${slug || 'portfolio'}.zip">Download Portfolio</a>
+          ${email ? `<a href="${mailtoHref}" class="btn btn-primary btn-send-email" data-email="${email}" data-name="${name}" data-slug="${escapeHtml(slug)}" data-network-ip="${escapeHtml(portfolio.networkIp || '')}" target="_blank" rel="noopener noreferrer">Get in Touch</a>` : ''}
+          <a href="${downloadUrl || '#'}" class="btn btn-download-portfolio" data-slug="${escapeHtml(slug)}" data-network-ip="${escapeHtml(portfolio.networkIp || '')}" download="${slug || 'portfolio'}.zip">Download Portfolio</a>
           ${links.github ? `<a href="${escapeHtml(links.github)}" target="_blank" rel="noopener noreferrer" class="btn">GitHub</a>` : ''}
           ${links.linkedin ? `<a href="${escapeHtml(links.linkedin)}" target="_blank" rel="noopener noreferrer" class="btn">LinkedIn</a>` : ''}
           ${links.twitter ? `<a href="${escapeHtml(links.twitter)}" target="_blank" rel="noopener noreferrer" class="btn">Twitter/X</a>` : ''}
@@ -926,8 +939,8 @@ ${name}`;
         <h2 class="section-title" style="justify-content: center;"><span>Let's Build Something Together</span></h2>
         <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Have a project in mind or interested in collaborating? Feel free to reach out.</p>
         <div class="links" style="justify-content: center;">
-          ${email ? `<a href="${mailtoHref}" class="btn btn-primary btn-send-email" data-email="${email}" data-name="${name}" data-slug="${escapeHtml(slug)}" target="_blank" rel="noopener noreferrer">Send Email</a>` : ''}
-          <a href="${downloadUrl || '#'}" class="btn btn-download-portfolio" data-slug="${escapeHtml(slug)}" download="${slug || 'portfolio'}.zip">Download Portfolio</a>
+          ${email ? `<a href="${mailtoHref}" class="btn btn-primary btn-send-email" data-email="${email}" data-name="${name}" data-slug="${escapeHtml(slug)}" data-network-ip="${escapeHtml(portfolio.networkIp || '')}" target="_blank" rel="noopener noreferrer">Send Email</a>` : ''}
+          <a href="${downloadUrl || '#'}" class="btn btn-download-portfolio" data-slug="${escapeHtml(slug)}" data-network-ip="${escapeHtml(portfolio.networkIp || '')}" download="${slug || 'portfolio'}.zip">Download Portfolio</a>
           ${links.github ? `<a href="${escapeHtml(links.github)}" target="_blank" rel="noopener noreferrer" class="btn">GitHub</a>` : ''}
           ${links.linkedin ? `<a href="${escapeHtml(links.linkedin)}" target="_blank" rel="noopener noreferrer" class="btn">LinkedIn</a>` : ''}
         </div>

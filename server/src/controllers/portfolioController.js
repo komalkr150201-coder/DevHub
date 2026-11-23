@@ -8,16 +8,49 @@ import { renderHtml, renderCss, renderJs } from '../services/portfolioRenderer.j
 import { buildPortfolioZip } from '../services/zip.js';
 import { sanitizePortfolioInput, normalizeSlug, validateSlug } from '../services/portfolioValidate.js';
 import { extractGitHubBackground } from '../services/githubBackground.js';
+import os from 'os';
 
 const MAX_VERSIONS = 20;
 const SNAP_FIELDS = ['template', 'theme', 'sections', 'profile', 'skills', 'projects', 'education', 'experience'];
+
+export const getLocalIp = () => {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return '127.0.0.1';
+};
 
 const snapshot = (p) => JSON.parse(JSON.stringify(Object.fromEntries(SNAP_FIELDS.map((k) => [k, p[k]]))));
 const pushVersion = (p, reason) => {
   p.versions.push({ reason, snapshot: snapshot(p) });
   if (p.versions.length > MAX_VERSIONS) p.versions.splice(0, p.versions.length - MAX_VERSIONS);
 };
-const publicBase = (req) => config.publicBaseUrl || `${req.protocol}://${req.get('host')}`;
+export const publicBase = (req) => {
+  if (config.publicBaseUrl) return config.publicBaseUrl;
+  const host = req.get('host') || '';
+  if (host.includes('localhost') || host.includes('127.0.0.1')) {
+    const localIp = getLocalIp();
+    if (localIp && localIp !== '127.0.0.1') {
+      return `${req.protocol}://${localIp}:5173`;
+    }
+  }
+  return `${req.protocol}://${host}`;
+};
+
+export const getNetworkInfo = (req, res) => {
+  const localIp = getLocalIp();
+  res.json({
+    success: true,
+    localIp,
+    publicBaseUrl: config.publicBaseUrl || '',
+    networkUrl: localIp !== '127.0.0.1' ? `http://${localIp}:5173` : '',
+  });
+};
 const view = (p, req) => {
   const o = p.toObject();
   delete o.versions;
@@ -254,6 +287,8 @@ export const previewPortfolio = async (req, res) => {
     const p = await getOrCreate(req.user);
     const draft = { ...p.toObject(), ...sanitizePortfolioInput(req.body || {}) };
     draft.theme = { ...p.theme, ...(req.body?.theme ? sanitizePortfolioInput({ theme: req.body.theme }).theme : {}) };
+    draft.publicBaseUrl = publicBase(req);
+    draft.networkIp = getLocalIp();
     res.json({ success: true, html: renderHtml(draft, { inline: true }) });
   } catch (err) {
     fail(res, err);
@@ -341,7 +376,10 @@ export const servePublicPortfolio = async (req, res, next) => {
       'X-Content-Type-Options': 'nosniff',
       'Cache-Control': 'public, max-age=60',
     });
-    res.send(renderHtml(p.toObject(), { inline: true }));
+    const draft = p.toObject();
+    draft.publicBaseUrl = publicBase(req);
+    draft.networkIp = getLocalIp();
+    res.send(renderHtml(draft, { inline: true }));
   } catch (err) {
     next(err);
   }
