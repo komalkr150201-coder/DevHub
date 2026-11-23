@@ -5,6 +5,7 @@ import 'core/app_router.dart';
 import 'state/auth_state.dart';
 import 'services/devhub_api.dart';
 
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(MultiProvider(
@@ -15,6 +16,7 @@ void main() {
     child: const DevHubApp(),
   ));
 }
+
 
 class DevHubApp extends StatelessWidget {
   const DevHubApp({super.key});
@@ -27,3 +29,6 @@ class DevHubApp extends StatelessWidget {
     initialRoute: '/',
   );
 }
+
+
+
