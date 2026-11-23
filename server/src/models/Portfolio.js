@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 
+
 const projectSchema = new Schema(
   {
     repoId: { type: Number },
@@ -15,6 +16,7 @@ const projectSchema = new Schema(
   },
   { _id: true }
 );
+
 
 const portfolioSchema = new Schema(
   {
@@ -56,6 +58,7 @@ const portfolioSchema = new Schema(
     experience: [
       { company: String, role: String, period: String, summary: String },
     ],
+    
     // Evidence the AI was allowed to use; kept for transparency & section regeneration
     generatedFrom: {
       repoIds: { type: [Number], default: [] },
@@ -75,3 +78,6 @@ const portfolioSchema = new Schema(
 
 export const Portfolio = mongoose.models.Portfolio || mongoose.model('Portfolio', portfolioSchema);
 export default Portfolio;
+
+
+
