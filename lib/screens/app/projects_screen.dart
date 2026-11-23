@@ -20,7 +20,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     future = context.read<DevHubApi>().projects();
   }
 
-  void reload() => setState(() => future = context.read<DevHubApi>().projects());
+  void reload() =>
+      setState(() => future = context.read<DevHubApi>().projects());
 
   @override
   Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
@@ -33,11 +34,12 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             return ErrorView(message: '${s.error}', retry: reload);
           }
           final projects = List<dynamic>.from(s.data?['projects'] ?? []);
+
           return ListView(
             padding: const EdgeInsets.all(18),
             children: [
               SectionTitle(
-                'Project boards',
+                'Project Boards',
                 subtitle: 'Find projects looking for teammates',
                 trailing: IconButton(
                   onPressed: reload,
@@ -47,17 +49,26 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               const SizedBox(height: 14),
               ...projects.map((e) {
                 final p = Map<String, dynamic>.from(e);
+                final projectId = '${p['_id'] ?? p['id'] ?? ''}';
                 final owner = Map<String, dynamic>.from(p['ownerId'] ?? {});
                 final req = List<dynamic>.from(p['requiredSkills'] ?? []);
+
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.only(bottom: 14),
                   child: Panel(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '${p['title'] ?? 'Untitled project'}',
-                          style: Theme.of(context).textTheme.titleLarge,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${p['title'] ?? 'Untitled Project'}',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                            ),
+                            SkillPill('${p['status'] ?? 'open'}'),
+                          ],
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -93,7 +104,15 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                 ),
                               ),
                             ),
-                            SkillPill('${p['status'] ?? 'open'}'),
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.auto_awesome, size: 16),
+                              label: const Text('Find Matches'),
+                              onPressed: () => _showProjectMatches(
+                                context,
+                                projectId,
+                                '${p['title'] ?? 'Project'}',
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -104,13 +123,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               if (projects.isEmpty)
                 const Panel(
                   child: Text(
-                    'No open project posts yet.',
+                    'No open project posts yet. Be the first to create one!',
                     style: TextStyle(color: AppColors.muted),
                   ),
                 ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               GradientButton(
-                label: 'Post a project',
+                label: 'Post a Project Requirement',
                 icon: Icons.add,
                 onPressed: () => _create(context),
               ),
@@ -119,11 +138,135 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         },
       );
 
+  Future<void> _showProjectMatches(
+    BuildContext context,
+    String projectId,
+    String projectTitle,
+  ) async {
+    final api = context.read<DevHubApi>();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bg2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Container(
+        height: MediaQuery.of(ctx).size.height * 0.75,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Matches for $projectTitle',
+                        style: Theme.of(ctx).textTheme.titleLarge,
+                      ),
+                      const Text(
+                        'AI-ranked candidate developers suited for this project',
+                        style: TextStyle(color: AppColors.muted, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Expanded(
+              child: FutureBuilder<Map<String, dynamic>>(
+                future: api.projectMatches(projectId),
+                builder: (context, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const LoadingView();
+                  }
+                  if (snap.hasError) {
+                    return ErrorView(
+                      message: '${snap.error}',
+                      retry: () => setState(() {}),
+                    );
+                  }
+                  final matches = List<dynamic>.from(
+                    snap.data?['matches'] ?? snap.data?['results'] ?? [],
+                  );
+                  if (matches.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'No candidate matches found for this project requirements yet.',
+                        style: TextStyle(color: AppColors.muted),
+                      ),
+                    );
+                  }
+                  return ListView.builder(
+                    itemCount: matches.length,
+                    itemBuilder: (context, i) {
+                      final m = Map<String, dynamic>.from(matches[i]);
+                      final user = Map<String, dynamic>.from(
+                        m['user'] ?? m['developer'] ?? m,
+                      );
+                      final score = (m['score'] ?? 80.0).toDouble();
+                      final username = '${user['username'] ?? ''}';
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Panel(
+                          child: Row(
+                            children: [
+                              InitialAvatar(
+                                name:
+                                    '${user['name'] ?? username ?? 'Developer'}',
+                                url: '${user['avatarUrl'] ?? ''}',
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${user['name'] ?? username ?? 'Dev'}',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                    Text(
+                                      '@$username',
+                                      style: const TextStyle(
+                                        color: AppColors.muted,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              MatchBadge(score: score),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _create(BuildContext context) async {
     final api = context.read<DevHubApi>();
-    final title = TextEditingController(),
-        desc = TextEditingController(),
-        skills = TextEditingController();
+    final title = TextEditingController();
+    final desc = TextEditingController();
+    final skills = TextEditingController();
+
     final ok = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -137,35 +280,44 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Create project', style: Theme.of(ctx).textTheme.titleLarge),
+            Text('Post a Project', style: Theme.of(ctx).textTheme.titleLarge),
             const SizedBox(height: 14),
             TextField(
               controller: title,
-              decoration: const InputDecoration(labelText: 'Project title'),
+              decoration: const InputDecoration(
+                labelText: 'Project Title',
+                hintText: 'e.g. AI-Powered Portfolio Builder',
+              ),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: desc,
               maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Description'),
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                hintText: 'What are you building and who are you looking for?',
+              ),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: skills,
               decoration: const InputDecoration(
                 labelText: 'Required skills (comma separated)',
+                hintText: 'e.g. React, Node.js, MongoDB',
               ),
             ),
             const SizedBox(height: 16),
             GradientButton(
-              label: 'Publish project',
+              label: 'Publish Project',
               onPressed: () => Navigator.pop(ctx, true),
             ),
           ],
         ),
       ),
     );
+
     if (ok != true) return;
     try {
       final reqSkills = skills.text
@@ -181,6 +333,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         'requiredSkills': reqSkills,
       });
       reload();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Project requirement published!')),
+        );
+      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

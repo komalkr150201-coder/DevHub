@@ -14,6 +14,7 @@ class RepositoriesScreen extends StatefulWidget {
 class _RepositoriesScreenState extends State<RepositoriesScreen> {
   String query = '';
   bool pinnedOnly = false;
+  bool syncing = false;
 
   @override
   Widget build(BuildContext context) {
@@ -27,21 +28,54 @@ class _RepositoriesScreenState extends State<RepositoriesScreen> {
     return ListView(
       padding: const EdgeInsets.all(18),
       children: [
-        Text(
-          'My repositories',
-          style: Theme.of(context).textTheme.headlineMedium,
+        SectionTitle(
+          'My Repositories',
+          subtitle: 'Repositories synced from your GitHub account',
+          trailing: TextButton.icon(
+            onPressed: syncing
+                ? null
+                : () async {
+                    setState(() => syncing = true);
+                    try {
+                      await auth.sync();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('GitHub repositories synced!'),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(e.toString())),
+                        );
+                      }
+                    } finally {
+                      if (mounted) setState(() => syncing = false);
+                    }
+                  },
+            icon: syncing
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync, size: 17),
+            label: const Text('Sync'),
+          ),
         ),
         const SizedBox(height: 14),
         TextField(
           decoration: const InputDecoration(
             prefixIcon: Icon(Icons.search),
-            hintText: 'Search repositories',
+            hintText: 'Search repositories...',
           ),
           onChanged: (v) => setState(() => query = v),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Pinned only'),
+          title: const Text('Pinned repositories only'),
           value: pinnedOnly,
           onChanged: (v) => setState(() => pinnedOnly = v),
           activeThumbColor: AppColors.violet,
@@ -51,6 +85,7 @@ class _RepositoriesScreenState extends State<RepositoriesScreen> {
           (r) => Padding(
             padding: const EdgeInsets.only(bottom: 11),
             child: Panel(
+              onTap: () => launchExternalUrl(r.url),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -65,6 +100,7 @@ class _RepositoriesScreenState extends State<RepositoriesScreen> {
                         ),
                       ),
                       IconButton(
+                        tooltip: r.pinned ? 'Unpin repository' : 'Pin repository',
                         onPressed: () async {
                           try {
                             await auth.api.updateRepo(
@@ -72,6 +108,17 @@ class _RepositoriesScreenState extends State<RepositoriesScreen> {
                               {'isPinned': !r.pinned},
                             );
                             await auth.loadMe();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    r.pinned
+                                        ? 'Repository unpinned'
+                                        : 'Repository pinned to portfolio',
+                                  ),
+                                ),
+                              );
+                            }
                           } catch (e) {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -88,16 +135,22 @@ class _RepositoriesScreenState extends State<RepositoriesScreen> {
                     ],
                   ),
                   if (r.description.isNotEmpty)
-                    Text(
-                      r.description,
-                      style: const TextStyle(color: AppColors.muted),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        r.description,
+                        style: const TextStyle(color: AppColors.muted),
+                      ),
                     ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Text(
                         '★ ${r.stars}',
-                        style: const TextStyle(color: AppColors.amber),
+                        style: const TextStyle(
+                          color: AppColors.amber,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(width: 16),
                       Text(
@@ -106,10 +159,14 @@ class _RepositoriesScreenState extends State<RepositoriesScreen> {
                       ),
                       const Spacer(),
                       if (r.url.isNotEmpty)
-                        const Icon(
-                          Icons.open_in_new,
-                          size: 16,
-                          color: AppColors.muted,
+                        IconButton(
+                          tooltip: 'Open in GitHub',
+                          icon: const Icon(
+                            Icons.open_in_new,
+                            size: 18,
+                            color: AppColors.muted,
+                          ),
+                          onPressed: () => launchExternalUrl(r.url),
                         ),
                     ],
                   ),
@@ -122,7 +179,7 @@ class _RepositoriesScreenState extends State<RepositoriesScreen> {
           const Padding(
             padding: EdgeInsets.all(30),
             child: Text(
-              'No repositories match this filter.',
+              'No repositories match this filter. Sync GitHub data or adjust your search query.',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.muted),
             ),

@@ -3,10 +3,286 @@ import 'package:provider/provider.dart';
 import '../../state/auth_state.dart';
 import '../../core/app_theme.dart';
 import '../../widgets/devhub_widgets.dart';
-class PortfolioScreen extends StatefulWidget{const PortfolioScreen({super.key});@override State<PortfolioScreen> createState()=>_PortfolioScreenState();}
-class _PortfolioScreenState extends State<PortfolioScreen>{
- final name=TextEditingController(),headline=TextEditingController(),bio=TextEditingController(),website=TextEditingController(),linkedin=TextEditingController();
- bool initialized=false,busy=false;
- @override Widget build(BuildContext context){final auth=context.watch<AuthState>();final u=auth.user;if(u==null)return const LoadingView();if(!initialized){name.text=u.name;headline.text=u.headline;bio.text=u.bio;website.text='${u.links['website']??''}';linkedin.text='${u.links['linkedin']??''}';initialized=true;}
- return ListView(padding:const EdgeInsets.all(18),children:[Text('My portfolio',style:Theme.of(context).textTheme.headlineMedium),const SizedBox(height:5),const Text('Manage the developer identity generated from your GitHub activity.',style:TextStyle(color:AppColors.muted)),const SizedBox(height:20),Panel(child:Column(children:[InitialAvatar(name:u.name,url:u.avatarUrl,size:72),const SizedBox(height:12),Text(u.name,style:Theme.of(context).textTheme.titleLarge),Text('@${u.username}',style:const TextStyle(color:AppColors.muted)),const SizedBox(height:14),Wrap(spacing:8,runSpacing:8,children:auth.skills.take(12).map((e)=>SkillPill('${e['name']}')).toList())])),const SizedBox(height:20),TextField(controller:name,decoration:const InputDecoration(labelText:'Display name')),const SizedBox(height:12),TextField(controller:headline,decoration:const InputDecoration(labelText:'Professional headline')),const SizedBox(height:12),TextField(controller:bio,maxLines:4,decoration:const InputDecoration(labelText:'About you')),const SizedBox(height:12),TextField(controller:website,decoration:const InputDecoration(labelText:'Website URL')),const SizedBox(height:12),TextField(controller:linkedin,decoration:const InputDecoration(labelText:'LinkedIn URL')),const SizedBox(height:18),GradientButton(label:'Save profile',loading:busy,onPressed:()async{setState(()=>busy=true);try{await auth.updateProfile({'name':name.text,'headline':headline.text,'bio':bio.text,'links':{'website':website.text,'linkedin':linkedin.text}});if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Profile updated')));}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}finally{if(mounted)setState(()=>busy=false);}})]);}
+
+class PortfolioScreen extends StatefulWidget {
+  const PortfolioScreen({super.key});
+
+  @override
+  State<PortfolioScreen> createState() => _PortfolioScreenState();
+}
+
+class _PortfolioScreenState extends State<PortfolioScreen>
+    with SingleTickerProviderStateMixin {
+  final name = TextEditingController();
+  final headline = TextEditingController();
+  final bio = TextEditingController();
+  final website = TextEditingController();
+  final linkedin = TextEditingController();
+
+  bool initialized = false;
+  bool busy = false;
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    name.dispose();
+    headline.dispose();
+    bio.dispose();
+    website.dispose();
+    linkedin.dispose();
+    super.dispose();
+  }
+
+  void _initFields(u) {
+    if (!initialized) {
+      name.text = u.name;
+      headline.text = u.headline;
+      bio.text = u.bio;
+      website.text = '${u.links['website'] ?? ''}';
+      linkedin.text = '${u.links['linkedin'] ?? ''}';
+      initialized = true;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthState>();
+    final u = auth.user;
+    if (u == null) return const LoadingView();
+    _initFields(u);
+
+    return Scaffold(
+      body: Column(
+        children: [
+          TabBar(
+            controller: _tabController,
+            indicatorColor: AppColors.violet,
+            labelColor: AppColors.violet,
+            unselectedLabelColor: AppColors.muted,
+            tabs: const [
+              Tab(icon: Icon(Icons.badge_outlined), text: 'Portfolio View'),
+              Tab(icon: Icon(Icons.edit_note), text: 'Edit Profile'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildViewTab(auth, u),
+                _buildEditTab(auth),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewTab(AuthState auth, u) => ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          Panel(
+            child: Column(
+              children: [
+                InitialAvatar(name: u.name, url: u.avatarUrl, size: 76),
+                const SizedBox(height: 12),
+                Text(u.name, style: Theme.of(context).textTheme.headlineMedium),
+                Text('@${u.username}',
+                    style: const TextStyle(color: AppColors.muted)),
+                if (u.headline.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    u.headline,
+                    style: const TextStyle(
+                      color: AppColors.sky,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+                if (u.bio.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    u.bio,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppColors.muted),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    if ('${u.links['website'] ?? ''}'.isNotEmpty)
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.language, size: 16),
+                        label: const Text('Website'),
+                        onPressed: () => launchExternalUrl('${u.links['website']}'),
+                      ),
+                    if ('${u.links['linkedin'] ?? ''}'.isNotEmpty)
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.link, size: 16),
+                        label: const Text('LinkedIn'),
+                        onPressed: () =>
+                            launchExternalUrl('${u.links['linkedin']}'),
+                      ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      label: const Text('Public Profile'),
+                      onPressed: () =>
+                          Navigator.pushNamed(context, '/u/${u.username}'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          SectionTitle('Skills & Competencies'),
+          const SizedBox(height: 10),
+          Panel(
+            child: Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: auth.skills
+                  .map((e) => SkillPill('${e['name'] ?? ''}'))
+                  .toList(),
+            ),
+          ),
+          const SizedBox(height: 20),
+          SectionTitle('Pinned Repositories'),
+          const SizedBox(height: 10),
+          ...auth.repos.where((r) => r.pinned).map(
+                (r) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Panel(
+                    onTap: () => launchExternalUrl(r.url),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.folder_open, color: AppColors.sky),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                r.name,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              if (r.description.isNotEmpty)
+                                Text(
+                                  r.description,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppColors.muted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '★ ${r.stars}',
+                          style: const TextStyle(color: AppColors.amber),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+        ],
+      );
+
+  Widget _buildEditTab(AuthState auth) => ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          Text(
+            'Edit Developer Profile',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 5),
+          const Text(
+            'Update your personal bio, headline, and external social links.',
+            style: TextStyle(color: AppColors.muted),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: name,
+            decoration: const InputDecoration(labelText: 'Display Name'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: headline,
+            decoration: const InputDecoration(
+              labelText: 'Professional Headline',
+              hintText: 'e.g. Full-Stack Developer & Open Source Contributor',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: bio,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'About You / Bio',
+              hintText: 'Describe your background, interests and tools...',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: website,
+            decoration: const InputDecoration(
+              labelText: 'Website / Portfolio URL',
+              hintText: 'https://yourwebsite.com',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: linkedin,
+            decoration: const InputDecoration(
+              labelText: 'LinkedIn Profile URL',
+              hintText: 'https://linkedin.com/in/username',
+            ),
+          ),
+          const SizedBox(height: 20),
+          GradientButton(
+            label: 'Save Profile Changes',
+            loading: busy,
+            onPressed: () async {
+              setState(() => busy = true);
+              try {
+                await auth.updateProfile({
+                  'name': name.text,
+                  'headline': headline.text,
+                  'bio': bio.text,
+                  'links': {
+                    'website': website.text,
+                    'linkedin': linkedin.text,
+                  },
+                });
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Profile saved successfully!')),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(e.toString())),
+                  );
+                }
+              } finally {
+                if (mounted) setState(() => busy = false);
+              }
+            },
+          ),
+        ],
+      );
 }

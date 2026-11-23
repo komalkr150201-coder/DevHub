@@ -1,23 +1,367 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_theme.dart';
+import '../../services/devhub_api.dart';
 import '../../state/auth_state.dart';
 import '../../widgets/devhub_widgets.dart';
+import '../shell/app_shell.dart';
 
-class DashboardScreen extends StatefulWidget{const DashboardScreen({super.key});@override State<DashboardScreen> createState()=>_DashboardScreenState();}
-class _DashboardScreenState extends State<DashboardScreen>{
- bool syncing=false;
- @override Widget build(BuildContext context){final auth=context.watch<AuthState>();final u=auth.user;if(u==null)return const LoadingView();final s=u.stats;
- return RefreshIndicator(onRefresh:auth.loadMe,child:ListView(padding:const EdgeInsets.fromLTRB(18,14,18,30),children:[
- Text('Good to see you, ${u.name.split(' ').first} 👋',style:Theme.of(context).textTheme.headlineMedium),const SizedBox(height:5),const Text('Here is what is happening with your developer profile.',style:TextStyle(color:AppColors.muted)),const SizedBox(height:20),
- Panel(child:Row(children:[InitialAvatar(name:u.name,url:u.avatarUrl,size:58),const SizedBox(width:14),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(u.name,style:Theme.of(context).textTheme.titleLarge),Text('@${u.username}',style:const TextStyle(color:AppColors.muted)),if(u.headline.isNotEmpty)Text(u.headline,style:const TextStyle(color:AppColors.sky,fontSize:12))])),IconButton(onPressed:()=>Navigator.pushNamed(context,'/u/${u.username}'),icon:const Icon(Icons.open_in_new,color:AppColors.sky))])),
- const SizedBox(height:18),GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:2,childAspectRatio:1.65,crossAxisSpacing:10,mainAxisSpacing:10,children:[
- _Stat('Repositories','${s['totalRepos']??auth.repos.length}',Icons.folder_copy_outlined,AppColors.violet),_Stat('Total stars','${s['totalStars']??0}',Icons.star_outline,AppColors.amber),_Stat('Followers','${s['followers']??0}',Icons.people_outline,AppColors.blue),_Stat('Commit streak','${s['contributionStreak']??0} days',Icons.local_fire_department_outlined,AppColors.green)]),
- const SizedBox(height:20),SectionTitle('GitHub activity',subtitle:'Keep your living portfolio fresh',trailing:TextButton.icon(onPressed:syncing?null:()async{setState(()=>syncing=true);try{await auth.sync();if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('GitHub data synchronized')));}catch(e){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}finally{if(mounted)setState(()=>syncing=false);}},icon:syncing?const SizedBox(width:14,height:14,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.sync,size:17),label:const Text('Sync'))),
- const SizedBox(height:10),Panel(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('Your profile is powered by real repository evidence.',style:TextStyle(fontWeight:FontWeight.w600)),const SizedBox(height:8),Text('${auth.skills.length} extracted skills · ${auth.repos.length} repositories available',style:const TextStyle(color:AppColors.muted)),const SizedBox(height:14),Wrap(spacing:7,runSpacing:7,children:auth.skills.take(8).map((e)=>SkillPill('${e['name']??''}')).toList())])),
- const SizedBox(height:20),SectionTitle('Pinned repositories',trailing:TextButton(onPressed:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Open Repositories from the app menu'))),child:const Text('Explore'))),const SizedBox(height:10),
- ...auth.repos.where((r)=>r.pinned).take(4).map((r)=>Padding(padding:const EdgeInsets.only(bottom:10),child:Panel(child:Row(children:[const Icon(Icons.folder_open,color:AppColors.sky),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(r.name,style:const TextStyle(fontWeight:FontWeight.w700)),if(r.description.isNotEmpty)Text(r.description,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(color:AppColors.muted,fontSize:12))])),Text('★ ${r.stars}',style:const TextStyle(color:AppColors.amber,fontWeight:FontWeight.w700))])))),
- if(auth.repos.isEmpty)const Panel(child:Text('No repositories found yet. Sync your GitHub account to get started.',style:TextStyle(color:AppColors.muted)))
- ]));}
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
 }
-class _Stat extends StatelessWidget{final String label,value;final IconData icon;final Color color;const _Stat(this.label,this.value,this.icon,this.color);@override Widget build(BuildContext context)=>Panel(padding:const EdgeInsets.all(13),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Icon(icon,color:color),Text(value,style:const TextStyle(fontSize:22,fontWeight:FontWeight.w800)),Text(label,style:const TextStyle(color:AppColors.muted,fontSize:12))]));}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  bool syncing = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthState>();
+    final u = auth.user;
+    if (u == null) return const LoadingView();
+    final s = u.stats;
+
+    return RefreshIndicator(
+      onRefresh: auth.loadMe,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 30),
+        children: [
+          Text(
+            'Good to see you, ${u.name.split(' ').first} 👋',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 5),
+          const Text(
+            'Here is what is happening with your developer workspace.',
+            style: TextStyle(color: AppColors.muted),
+          ),
+          const SizedBox(height: 20),
+
+          // User Profile Overview Card
+          Panel(
+            onTap: () => Navigator.pushNamed(context, '/u/${u.username}'),
+            child: Row(
+              children: [
+                InitialAvatar(name: u.name, url: u.avatarUrl, size: 58),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(u.name, style: Theme.of(context).textTheme.titleLarge),
+                      Text('@${u.username}',
+                          style: const TextStyle(color: AppColors.muted)),
+                      if (u.headline.isNotEmpty)
+                        Text(
+                          u.headline,
+                          style: const TextStyle(color: AppColors.sky, fontSize: 12),
+                        ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'View public profile',
+                  onPressed: () => Navigator.pushNamed(context, '/u/${u.username}'),
+                  icon: const Icon(Icons.open_in_new, color: AppColors.sky),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          // Stat Cards Grid
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            childAspectRatio: 1.65,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            children: [
+              _Stat(
+                'Repositories',
+                '${s['totalRepos'] ?? auth.repos.length}',
+                Icons.folder_copy_outlined,
+                AppColors.violet,
+                onTap: () => AppShell.of(context)?.setTab(2),
+              ),
+              _Stat(
+                'Total Stars',
+                '${s['totalStars'] ?? 0}',
+                Icons.star_outline,
+                AppColors.amber,
+                onTap: () => AppShell.of(context)?.setTab(2),
+              ),
+              _Stat(
+                'Followers',
+                '${s['followers'] ?? 0}',
+                Icons.people_outline,
+                AppColors.blue,
+                onTap: () => AppShell.of(context)?.setTab(4),
+              ),
+              _Stat(
+                'Commit Streak',
+                '${s['contributionStreak'] ?? 0} days',
+                Icons.local_fire_department_outlined,
+                AppColors.green,
+                onTap: () => AppShell.of(context)?.setTab(3),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Quick Actions Row
+          SectionTitle('Quick Actions'),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _QuickActionButton(
+                  icon: Icons.people_alt_outlined,
+                  label: 'Find Teammates',
+                  color: AppColors.violet,
+                  onTap: () => AppShell.of(context)?.setTab(4),
+                ),
+                const SizedBox(width: 8),
+                _QuickActionButton(
+                  icon: Icons.add_circle_outline,
+                  label: 'Post Project',
+                  color: AppColors.sky,
+                  onTap: () => AppShell.of(context)?.setTab(6),
+                ),
+                const SizedBox(width: 8),
+                _QuickActionButton(
+                  icon: Icons.auto_awesome,
+                  label: 'AI Studio',
+                  color: AppColors.amber,
+                  onTap: () => AppShell.of(context)?.setTab(7),
+                ),
+                const SizedBox(width: 8),
+                _QuickActionButton(
+                  icon: Icons.folder_open,
+                  label: 'Repos',
+                  color: AppColors.blue,
+                  onTap: () => AppShell.of(context)?.setTab(2),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // GitHub Sync section
+          SectionTitle(
+            'GitHub Activity',
+            subtitle: 'Keep your living portfolio fresh',
+            trailing: TextButton.icon(
+              onPressed: syncing
+                  ? null
+                  : () async {
+                      setState(() => syncing = true);
+                      try {
+                        await auth.sync();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('GitHub data synchronized'),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(e.toString())),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => syncing = false);
+                      }
+                    },
+              icon: syncing
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync, size: 17),
+              label: const Text('Sync'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Panel(
+            onTap: () => AppShell.of(context)?.setTab(3),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Your profile is powered by real repository evidence.',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${auth.skills.length} extracted skills · ${auth.repos.length} repositories available',
+                  style: const TextStyle(color: AppColors.muted),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: auth.skills
+                      .take(8)
+                      .map((e) => SkillPill('${e['name'] ?? ''}'))
+                      .toList(),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Pinned Repositories section
+          SectionTitle(
+            'Pinned Repositories',
+            trailing: TextButton(
+              onPressed: () => AppShell.of(context)?.setTab(2),
+              child: const Text('Manage repos'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...auth.repos.where((r) => r.pinned).take(4).map(
+                (r) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Panel(
+                    onTap: () => launchExternalUrl(r.url),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.folder_open, color: AppColors.sky),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                r.name,
+                                style: const TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              if (r.description.isNotEmpty)
+                                Text(
+                                  r.description,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppColors.muted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '★ ${r.stars}',
+                          style: const TextStyle(
+                            color: AppColors.amber,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (r.url.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.open_in_new,
+                                size: 16, color: AppColors.muted),
+                            onPressed: () => launchExternalUrl(r.url),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          if (auth.repos.isEmpty)
+            const Panel(
+              child: Text(
+                'No repositories found yet. Sync your GitHub account to get started.',
+                style: TextStyle(color: AppColors.muted),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  final String label, value;
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onTap;
+
+  const _Stat(this.label, this.value, this.icon, this.color, {this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Panel(
+        padding: const EdgeInsets.all(13),
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Icon(icon, color: color),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+            ),
+            Text(
+              label,
+              style: const TextStyle(color: AppColors.muted, fontSize: 12),
+            ),
+          ],
+        ),
+      );
+}
+
+class _QuickActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _QuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
