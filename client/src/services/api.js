@@ -1,0 +1,75 @@
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || '',
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Automatically attach stored session token for cross-domain or header-based auth
+api.interceptors.request.use((reqConfig) => {
+  try {
+    const token = localStorage.getItem('devhub_token');
+    if (token && !reqConfig.headers.Authorization) {
+      reqConfig.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch {}
+  return reqConfig;
+});
+
+export const authAPI = {
+  demoLogin: (username) => api.post('/auth/demo-login', { username }),
+  logout: () => api.post('/auth/logout'),
+  forgotPassword: (identifier) => api.post('/auth/forgot-password', { identifier }),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
+};
+
+export const userAPI = {
+  getMe: () => api.get('/api/me'),
+  updateMe: (data) => api.patch('/api/me', data),
+  syncGitHub: () => api.post('/api/sync'),
+  updateRepo: (id, data) => api.patch(`/api/repos/${id}`, data),
+  updateSkills: (skills) => api.put('/api/skills', { skills }),
+  getPublicProfile: (username) => api.get(`/api/users/${username}`),
+};
+
+export const matchAPI = {
+  rankDevelopers: (required, niceToHave = [], limit = 15) =>
+    api.post('/api/match', { required, niceToHave, limit }),
+  searchDevelopers: (params) => api.get('/api/search', { params }),
+};
+
+export const projectAPI = {
+  getProjects: (params) => api.get('/api/projects', { params }),
+  createProject: (data) => api.post('/api/projects', data),
+  getProjectById: (id) => api.get(`/api/projects/${id}`),
+  getProjectMatches: (id) => api.get(`/api/projects/${id}/matches`),
+  updateProject: (id, data) => api.patch(`/api/projects/${id}`, data),
+  deleteProject: (id) => api.delete(`/api/projects/${id}`),
+};
+
+export const requestAPI = {
+  getRequests: () => api.get('/api/requests'),
+  sendRequest: (data) => api.post('/api/requests', data),
+  updateRequestStatus: (id, status) => api.patch(`/api/requests/${id}`, { status }),
+  cancelRequest: (id) => api.delete(`/api/requests/${id}`),
+};
+
+export const portfolioAPI = {
+  get: () => api.get('/api/portfolio'),
+  update: (data) => api.put('/api/portfolio', data),
+  generate: (data) => api.post('/api/portfolio/generate', data),
+  regenerate: (data) => api.post('/api/portfolio/regenerate', data),
+  preview: (data) => api.post('/api/portfolio/preview', data),
+  exportZip: () => api.get('/api/portfolio/export', { responseType: 'blob' }),
+  checkSlug: (slug) => api.get('/api/portfolio/slug-check', { params: { slug } }),
+  publish: (slug) => api.post('/api/portfolio/publish', { slug }),
+  unpublish: () => api.post('/api/portfolio/unpublish'),
+  versions: () => api.get('/api/portfolio/versions'),
+  restore: (versionId) => api.post(`/api/portfolio/versions/${versionId}/restore`),
+};
+
+export { api };
+export default api;
