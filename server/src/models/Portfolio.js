@@ -21,7 +21,7 @@ const portfolioSchema = new Schema(
     owner: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true },
     slug: { type: String, lowercase: true, trim: true, unique: true, sparse: true },
     status: { type: String, enum: ['draft', 'published'], default: 'draft', index: true },
-    template: { type: String, enum: ['aurora', 'minimal', 'terminal'], default: 'aurora' },
+    template: { type: String, enum: ['aurora', 'minimal', 'terminal', 'cyberpunk'], default: 'aurora' },
     theme: {
       accent: { type: String, default: '#6366f1' },
       accent2: { type: String, default: '#22d3ee' },

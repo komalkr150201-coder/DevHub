@@ -7,6 +7,7 @@ import { generateWithGemini } from '../services/gemini.js';
 import { renderHtml, renderCss, renderJs } from '../services/portfolioRenderer.js';
 import { buildPortfolioZip } from '../services/zip.js';
 import { sanitizePortfolioInput, normalizeSlug, validateSlug } from '../services/portfolioValidate.js';
+import { extractGitHubBackground } from '../services/githubBackground.js';
 
 const MAX_VERSIONS = 20;
 const SNAP_FIELDS = ['template', 'theme', 'sections', 'profile', 'skills', 'projects', 'education', 'experience'];
@@ -42,6 +43,20 @@ export const getMyPortfolio = async (req, res) => {
   res.json({ success: true, portfolio: view(p, req) });
 };
 
+export const getGitHubBackground = async (req, res) => {
+  try {
+    const repoIds = Array.isArray(req.query.repoIds)
+      ? req.query.repoIds
+      : typeof req.query.repoIds === 'string'
+      ? req.query.repoIds.split(',').filter(Boolean)
+      : [];
+    const bg = await extractGitHubBackground(req.user, repoIds);
+    res.json({ success: true, ...bg });
+  } catch (err) {
+    fail(res, err);
+  }
+};
+
 export const updateMyPortfolio = async (req, res) => {
   try {
     const patch = sanitizePortfolioInput(req.body);
@@ -68,6 +83,16 @@ export const generatePortfolio = async (req, res) => {
     const repoIds = Array.isArray(req.body.repoIds) ? req.body.repoIds.filter((x) => /^[a-f0-9]{24}$/.test(String(x))).slice(0, 8) : [];
     if (!repoIds.length) return res.status(400).json({ success: false, message: 'Select 1-8 repositories.' });
     const extra = userInfo(req.body.userInfo);
+    if (!extra.education.length || !extra.experience.length) {
+      try {
+        const bg = await extractGitHubBackground(req.user, repoIds);
+        if (!extra.education.length && bg.education?.length) extra.education = bg.education;
+        if (!extra.experience.length && bg.experience?.length) extra.experience = bg.experience;
+        if (!extra.skills.length && bg.skills?.length) extra.skills = bg.skills;
+      } catch (bgErr) {
+        console.warn('[GeneratePortfolio] Could not auto-extract GitHub background:', bgErr.message);
+      }
+    }
     const evidence = await buildEvidence(req.user, repoIds, extra);
     const ai = await generateWithGemini({ section: 'all', evidence, instruction: req.body.instruction });
 
@@ -116,7 +141,7 @@ export const generatePortfolio = async (req, res) => {
 
     if (extra.education.length) p.education = extra.education;
     if (extra.experience.length) p.experience = extra.experience;
-    if (['aurora', 'minimal', 'terminal'].includes(req.body.template)) p.template = req.body.template;
+    if (['aurora', 'minimal', 'terminal', 'cyberpunk'].includes(req.body.template)) p.template = req.body.template;
     p.generatedFrom = { repoIds: repos.map((r) => r.githubRepoId), at: new Date() };
     await p.save();
     res.json({ success: true, portfolio: view(p, req) });

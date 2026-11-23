@@ -22,6 +22,7 @@ const ROUTE_TITLES = {
   "/app": "Dashboard",
   "/app/portfolio": "My Portfolio",
   "/app/generator": "AI Portfolio Studio",
+  "/app/templates": "Portfolio Templates",
   "/app/repositories": "My Repositories",
   "/app/skills": "My Skills",
   "/app/developers": "Find Developers",

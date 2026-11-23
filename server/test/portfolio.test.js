@@ -62,6 +62,21 @@ test('1. GET /api/portfolio initializes a default draft portfolio', async () => 
   assert.strictEqual(data.portfolio.profile.name, 'Asha Sharma');
 });
 
+test('1b. GET /api/portfolio/github-background auto-fetches education & experience from GitHub', async () => {
+  const res = await fetch(`${baseUrl}/api/portfolio/github-background`, {
+    headers: { Cookie: authCookie },
+  });
+  const data = await res.json();
+  assert.strictEqual(res.status, 200);
+  assert.ok(data.success);
+  assert.ok(Array.isArray(data.education), 'education should be an array');
+  assert.ok(data.education.length > 0, 'education should not be empty');
+  assert.ok(Array.isArray(data.experience), 'experience should be an array');
+  assert.ok(data.experience.length > 0, 'experience should not be empty');
+  assert.ok(data.education[0].school);
+  assert.ok(data.experience[0].company);
+});
+
 test('2. POST /api/portfolio/generate creates an AI portfolio from repos', async () => {
   const repoIds = userRepos.map((r) => r._id.toString());
   const res = await fetch(`${baseUrl}/api/portfolio/generate`, {
@@ -91,6 +106,29 @@ test('2. POST /api/portfolio/generate creates an AI portfolio from repos', async
   assert.strictEqual(data.portfolio.template, 'aurora');
   assert.strictEqual(data.portfolio.education.length, 1);
   assert.strictEqual(data.portfolio.experience.length, 1);
+});
+
+test('2b. POST /api/portfolio/generate with cyberpunk template and auto-fetched background', async () => {
+  const repoIds = userRepos.map((r) => r._id.toString());
+  const res = await fetch(`${baseUrl}/api/portfolio/generate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Cookie: authCookie,
+    },
+    body: JSON.stringify({
+      repoIds,
+      template: 'cyberpunk',
+      userInfo: {}, // empty manual input, should auto-fetch background
+    }),
+  });
+
+  const data = await res.json();
+  assert.strictEqual(res.status, 200, `Expected 200, got ${res.status}: ${JSON.stringify(data)}`);
+  assert.ok(data.success);
+  assert.strictEqual(data.portfolio.template, 'cyberpunk');
+  assert.ok(data.portfolio.education.length > 0, 'education should be auto-populated');
+  assert.ok(data.portfolio.experience.length > 0, 'experience should be auto-populated');
 });
 
 test('3. POST /api/portfolio/preview renders live preview HTML', async () => {

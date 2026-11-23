@@ -59,6 +59,10 @@ export const requestAPI = {
 
 export const portfolioAPI = {
   get: () => api.get('/api/portfolio'),
+  getGitHubBackground: (repoIds) =>
+    api.get('/api/portfolio/github-background', {
+      params: repoIds ? { repoIds: Array.isArray(repoIds) ? repoIds.join(',') : repoIds } : undefined,
+    }),
   update: (data) => api.put('/api/portfolio', data),
   generate: (data) => api.post('/api/portfolio/generate', data),
   regenerate: (data) => api.post('/api/portfolio/regenerate', data),

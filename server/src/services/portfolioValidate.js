@@ -34,7 +34,7 @@ export function sanitizePortfolioInput(input = {}) {
   if (!input || typeof input !== 'object') return {};
   const out = {};
 
-  if (['aurora', 'minimal', 'terminal'].includes(input.template)) {
+  if (['aurora', 'minimal', 'terminal', 'cyberpunk'].includes(input.template)) {
     out.template = input.template;
   }
 

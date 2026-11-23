@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { PageHeader } from '../components/PageHeader';
 import { Card } from '../components/Card';
@@ -8,12 +9,9 @@ import { ToggleSwitch } from '../components/ToggleSwitch';
 import { Badge } from '../components/Badge';
 import { Icon } from '../components/Icons';
 import { userAPI, portfolioAPI } from '../services/api';
+import { TEMPLATE_DESIGNS } from './TemplateSelector';
 
-const TEMPLATES = [
-  { id: 'aurora', name: 'Aurora', text: 'Modern sans-serif, rounded cards' },
-  { id: 'minimal', name: 'Minimal', text: 'Editorial serif, sharp corners' },
-  { id: 'terminal', name: 'Terminal', text: 'Monospace, hacker feel' },
-];
+const TEMPLATES = TEMPLATE_DESIGNS;
 const SECTIONS = ['about', 'skills', 'projects', 'experience', 'education', 'contact'];
 const errMsg = (e) => e?.response?.data?.message || e?.message || 'Something went wrong';
 
@@ -51,16 +49,62 @@ function ListEditor({ items, onChange, fields, blank, addLabel }) {
 }
 
 /* ---------- Step 1: import wizard ---------- */
-function ImportWizard({ repos, onGenerate, busy, hasExisting, onCancel }) {
+function ImportWizard({
+  repos,
+  onGenerate,
+  busy,
+  hasExisting,
+  onCancel,
+  currentTemplate,
+  onTemplateChange,
+}) {
+  const navigate = useNavigate();
+  const { toast } = useAuth();
   const [selected, setSelected] = useState([]);
-  const [template, setTemplate] = useState('aurora');
+  const [template, setTemplate] = useState(currentTemplate || 'aurora');
   const [extra, setExtra] = useState({ skills: '', education: [], experience: [], instruction: '' });
+  const [fetchingBg, setFetchingBg] = useState(false);
+  const [bgFetched, setBgFetched] = useState(false);
+
+  useEffect(() => {
+    if (currentTemplate && currentTemplate !== template) {
+      setTemplate(currentTemplate);
+    }
+  }, [currentTemplate]);
 
   useEffect(() => {
     if (repos.length > 0 && selected.length === 0) {
       setSelected(repos.slice(0, Math.min(repos.length, 6)).map((r) => r._id));
     }
   }, [repos]);
+
+  // Automatically fetch education and experience from GitHub
+  const fetchGitHubBackground = useCallback(async (forced = false) => {
+    setFetchingBg(true);
+    try {
+      const res = await portfolioAPI.getGitHubBackground(selected);
+      if (res.data) {
+        setExtra((prev) => ({
+          ...prev,
+          education: res.data.education?.length ? res.data.education : prev.education,
+          experience: res.data.experience?.length ? res.data.experience : prev.experience,
+          skills: prev.skills || (res.data.skills || []).join(', '),
+        }));
+        setBgFetched(true);
+        if (forced) {
+          toast('Refreshed education & experience from GitHub!', 'success');
+        }
+      }
+    } catch (e) {
+      console.warn('Could not auto-fetch GitHub background:', e);
+    } finally {
+      setFetchingBg(false);
+    }
+  }, [selected, toast]);
+
+  useEffect(() => {
+    fetchGitHubBackground(false);
+  }, [fetchGitHubBackground]);
 
   const toggle = (id) =>
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : s.length >= 8 ? s : [...s, id]));
@@ -72,6 +116,8 @@ function ImportWizard({ repos, onGenerate, busy, hasExisting, onCancel }) {
       setSelected(repos.slice(0, 8).map((r) => r._id));
     }
   };
+
+  const activeTemplateObj = TEMPLATES.find((t) => t.id === template) || TEMPLATES[0];
 
   return (
     <div className="stack">
@@ -112,14 +158,41 @@ function ImportWizard({ repos, onGenerate, busy, hasExisting, onCancel }) {
         <p className="muted small">{selected.length}/8 selected</p>
       </Card>
 
-      <Card title="2. Add what only you know" subtitle="Optional. Education and experience are used exactly as you write them; the AI will not invent any.">
+      <Card
+        title="2. Education & Experience"
+        subtitle="Automatically fetched from your GitHub profile, profile README, and repositories so you don't have to write them manually."
+        action={
+          <div className="row gap" style={{ alignItems: 'center' }}>
+            {bgFetched && (
+              <Badge tone="green">
+                <Icon name="check" size={12} /> Auto-fetched from GitHub
+              </Badge>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              icon="sync"
+              loading={fetchingBg}
+              onClick={() => fetchGitHubBackground(true)}
+            >
+              Sync from GitHub
+            </Button>
+          </div>
+        }
+      >
         <FormField label="Extra skills (comma separated)" id="x-skills">
           <Input id="x-skills" value={extra.skills} onChange={(v) => setExtra({ ...extra, skills: v })} />
         </FormField>
-        <h4>Education</h4>
+        <div className="row between" style={{ alignItems: 'center', marginTop: '4px' }}>
+          <h4>Education</h4>
+          {fetchingBg && <span className="muted small">Fetching from GitHub…</span>}
+        </div>
         <ListEditor items={extra.education} onChange={(education) => setExtra({ ...extra, education })} addLabel="Add education"
           blank={{ school: '', degree: '', period: '' }} fields={[['degree', 'Degree'], ['school', 'School'], ['period', 'Period']]} />
-        <h4>Experience</h4>
+        <div className="row between" style={{ alignItems: 'center', marginTop: '10px' }}>
+          <h4>Experience</h4>
+          {fetchingBg && <span className="muted small">Fetching from GitHub…</span>}
+        </div>
         <ListEditor items={extra.experience} onChange={(experience) => setExtra({ ...extra, experience })} addLabel="Add experience"
           blank={{ company: '', role: '', period: '', summary: '' }} fields={[['role', 'Role'], ['company', 'Company'], ['period', 'Period'], ['summary', 'Summary']]} />
         <FormField label="Tone / style guidance (optional)" id="x-ins" hint="Style only. It cannot add facts.">
@@ -127,14 +200,80 @@ function ImportWizard({ repos, onGenerate, busy, hasExisting, onCancel }) {
         </FormField>
       </Card>
 
-      <Card title="3. Pick a template">
-        <div className="radio-cards">
-          {TEMPLATES.map((t) => (
-            <button key={t.id} type="button" className={`radio-card ${template === t.id ? 'on' : ''}`} onClick={() => setTemplate(t.id)}>
-              <strong>{t.name}</strong>
-              <span className="muted small">{t.text}</span>
-            </button>
-          ))}
+      <Card
+        title="3. Portfolio Template"
+        subtitle="Choose the visual layout and style in which AI will generate your portfolio."
+      >
+        <div
+          style={{
+            background: 'var(--bg2)',
+            border: '1px solid var(--line)',
+            borderRadius: '14px',
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div
+              style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '12px',
+                background:
+                  template === 'terminal'
+                    ? '#161b22'
+                    : template === 'minimal'
+                    ? '#ffffff'
+                    : template === 'cyberpunk'
+                    ? 'linear-gradient(135deg, #a855f7, #06b6d4)'
+                    : 'linear-gradient(135deg, #6366f1, #22d3ee)',
+                color: template === 'minimal' ? '#000' : '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.25rem',
+                border: template === 'terminal' ? '1px solid #30363d' : 'none',
+                boxShadow:
+                  template === 'aurora'
+                    ? '0 0 16px rgba(99, 102, 241, 0.4)'
+                    : template === 'cyberpunk'
+                    ? '0 0 16px rgba(168, 85, 247, 0.5)'
+                    : 'none',
+              }}
+            >
+              {template === 'terminal' ? '>_' : template === 'minimal' ? 'Aa' : '✨'}
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <strong style={{ fontSize: '1.05rem', color: 'var(--ink)' }}>
+                  {activeTemplateObj.name}
+                </strong>
+                <Badge tone={activeTemplateObj.tone || 'violet'}>Selected Design</Badge>
+              </div>
+              <span className="muted small">
+                {activeTemplateObj.tagline || activeTemplateObj.description}
+              </span>
+            </div>
+          </div>
+
+          <Button
+            variant="secondary"
+            icon="grid"
+            onClick={() =>
+              navigate('/app/templates', {
+                state: {
+                  returnTo: '/app/generator',
+                  selectedTemplate: template,
+                },
+              })
+            }
+          >
+            Change template
+          </Button>
         </div>
       </Card>
 
@@ -211,6 +350,7 @@ function Preview({ draft }) {
 
 /* ---------- Editor ---------- */
 function Editor({ portfolio, setPortfolio, toast, onRegenerateAll }) {
+  const navigate = useNavigate();
   const [draft, setDraft] = useState(portfolio);
   const [dirty, setDirty] = useState(false);
   const [tab, setTab] = useState('content');
@@ -345,14 +485,69 @@ function Editor({ portfolio, setPortfolio, toast, onRegenerateAll }) {
           )}
 
           {tab === 'design' && (
-            <Card title="Design">
-              <div className="radio-cards">
-                {TEMPLATES.map((t) => (
-                  <button key={t.id} type="button" className={`radio-card ${draft.template === t.id ? 'on' : ''}`} onClick={() => change({ template: t.id })}>
-                    <strong>{t.name}</strong><span className="muted small">{t.text}</span>
-                  </button>
-                ))}
+            <Card
+              title="Design"
+              subtitle="Template design, accent colors, and visible sections."
+              action={
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="grid"
+                  onClick={() =>
+                    navigate('/app/templates', {
+                      state: {
+                        returnTo: '/app/generator',
+                        selectedTemplate: draft.template,
+                      },
+                    })
+                  }
+                >
+                  Change template
+                </Button>
+              }
+            >
+              <div
+                style={{
+                  background: 'var(--bg2)',
+                  border: '1px solid var(--line)',
+                  borderRadius: '12px',
+                  padding: '14px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  marginBottom: '14px',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <strong style={{ fontSize: '1rem' }}>
+                      Current Template: {TEMPLATES.find((t) => t.id === draft.template)?.name || draft.template}
+                    </strong>
+                    <Badge tone="violet">Active</Badge>
+                  </div>
+                  <span className="muted small">
+                    {TEMPLATES.find((t) => t.id === draft.template)?.tagline || 'Explore all designs in grid view.'}
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="grid"
+                  onClick={() =>
+                    navigate('/app/templates', {
+                      state: {
+                        returnTo: '/app/generator',
+                        selectedTemplate: draft.template,
+                      },
+                    })
+                  }
+                >
+                  Change template
+                </Button>
               </div>
+
               <Row>
                 <FormField label="Accent colour" id="c1"><input id="c1" type="color" value={draft.theme.accent} onChange={(e) => change({ theme: { ...draft.theme, accent: e.target.value } })} /></FormField>
                 <FormField label="Secondary accent" id="c2"><input id="c2" type="color" value={draft.theme.accent2} onChange={(e) => change({ theme: { ...draft.theme, accent2: e.target.value } })} /></FormField>
@@ -409,21 +604,42 @@ function Editor({ portfolio, setPortfolio, toast, onRegenerateAll }) {
 /* ---------- Page ---------- */
 export function PortfolioStudio() {
   const { toast } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [repos, setRepos] = useState([]);
   const [portfolio, setPortfolio] = useState(null);
   const [wizard, setWizard] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Template chosen from /app/templates or remembered
+  const [selectedTemplate, setSelectedTemplate] = useState(
+    location.state?.selectedTemplate || localStorage.getItem('devhub_selected_template') || 'aurora'
+  );
+
+  useEffect(() => {
+    if (location.state?.selectedTemplate) {
+      setSelectedTemplate(location.state.selectedTemplate);
+      localStorage.setItem('devhub_selected_template', location.state.selectedTemplate);
+    }
+  }, [location.state?.selectedTemplate]);
+
   const load = useCallback(async () => {
     try {
       const [me, pf] = await Promise.all([userAPI.getMe(), portfolioAPI.get()]);
       setRepos((me.data.repos || []).filter((r) => !r.isHidden));
-      setPortfolio(pf.data.portfolio);
-      setWizard(!pf.data.portfolio.generatedFrom?.at);
+      const p = pf.data.portfolio;
+      if (location.state?.selectedTemplate && p) {
+        p.template = location.state.selectedTemplate;
+      } else if (p?.template) {
+        setSelectedTemplate(p.template);
+      }
+      setPortfolio(p);
+      setWizard(!p.generatedFrom?.at);
     } catch (e) { toast(errMsg(e), 'error'); }
     finally { setLoading(false); }
-  }, [toast]);
+  }, [toast, location.state?.selectedTemplate]);
   useEffect(() => { load(); }, [load]);
 
   const generate = async (payload) => {
@@ -447,7 +663,15 @@ export function PortfolioStudio() {
         actions={portfolio?.status === 'published' && <Badge tone="green"><Icon name="globe" size={12} /> Published</Badge>}
       />
       {wizard || !portfolio ? (
-        <ImportWizard repos={repos} onGenerate={generate} busy={busy} hasExisting={hasExisting} onCancel={() => setWizard(false)} />
+        <ImportWizard
+          repos={repos}
+          onGenerate={generate}
+          busy={busy}
+          hasExisting={hasExisting}
+          onCancel={() => setWizard(false)}
+          currentTemplate={selectedTemplate}
+          onTemplateChange={setSelectedTemplate}
+        />
       ) : (
         <Editor portfolio={portfolio} setPortfolio={setPortfolio} toast={toast} onRegenerateAll={() => setWizard(true)} />
       )}

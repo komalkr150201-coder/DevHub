@@ -1,5 +1,13 @@
 import mongoose from 'mongoose';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { config } from './env.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Ensure in-memory mongodb downloads to workspace cache if needed
+process.env.MONGOMS_DOWNLOAD_DIR = path.resolve(__dirname, '../../../.cache/mongodb-binaries');
 
 let mongodInstance = null;
 

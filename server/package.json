@@ -10,7 +10,14 @@
     "seed": "node src/seed.js",
     "test": "node --test --test-concurrency=1 test/*.test.js"
   },
-  "keywords": ["mern", "github", "portfolio", "developer", "collaboration", "skills"],
+  "keywords": [
+    "mern",
+    "github",
+    "portfolio",
+    "developer",
+    "collaboration",
+    "skills"
+  ],
   "author": "DevHub Team",
   "license": "MIT",
   "dependencies": {
@@ -29,6 +36,7 @@
     "node-cron": "^3.0.3"
   },
   "devDependencies": {
+    "concurrently": "^10.0.7",
     "nodemon": "^3.1.9"
   }
 }
