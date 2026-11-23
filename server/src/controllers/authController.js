@@ -158,28 +158,36 @@ export const login = async (req, res) => {
       });
     }
 
-    const clean = identifier.trim().toLowerCase();
+    const rawIdentifier = identifier.trim();
+    const clean = rawIdentifier.toLowerCase();
     let user = await User.findOne({
-      $or: [{ username: clean }, { email: clean }],
+      $or: [
+        { username: clean },
+        { email: clean },
+        { name: new RegExp(`^${rawIdentifier}$`, 'i') }
+      ],
     }).select('+password +salt');
 
     if (!user) {
+      user = await User.findOne({
+        $or: [
+          { username: new RegExp(clean, 'i') },
+          { name: new RegExp(rawIdentifier, 'i') }
+        ]
+      }).select('+password +salt');
+    }
+
+    if (!user) {
       user = new User({
-        username: clean,
-        name: clean.charAt(0).toUpperCase() + clean.slice(1),
-        email: `${clean}@devhub.dev`,
+        username: clean.replace(/\s+/g, '_'),
+        name: rawIdentifier,
+        email: `${clean.replace(/\s+/g, '')}@devhub.dev`,
       });
       user.setPassword(password);
       await user.save();
-    } else if (!user.password || !user.salt) {
+    } else {
       user.setPassword(password);
       await user.save();
-    } else {
-      const isValid = user.validatePassword(password);
-      if (!isValid) {
-        user.setPassword(password);
-        await user.save();
-      }
     }
 
     let repos = await Repo.find({ userId: user._id });
