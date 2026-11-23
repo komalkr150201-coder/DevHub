@@ -50,6 +50,8 @@ class AuthState extends ChangeNotifier {
     skills=(data['skills'] as List? ?? []).map((e)=>Map<String,dynamic>.from(e)).toList();
     notifyListeners();
   }
+
+  
   
   Future<void> sync() async {
     final result=await api.sync();
@@ -58,6 +60,8 @@ class AuthState extends ChangeNotifier {
     if(result['skills'] is List) skills=(result['skills'] as List).map((e)=>Map<String,dynamic>.from(e)).toList();
     notifyListeners();
   }
+
+
   
   Future<void> updateProfile(Map<String,dynamic> data) async { await api.updateMe(data); await loadMe(); }
   Future<void> saveSkills(List<Map<String,dynamic>> value) async { await api.updateSkills(value); await loadMe(); }
