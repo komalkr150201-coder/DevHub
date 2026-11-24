@@ -77,6 +77,43 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
+  Future<void> verifyGitHub() async {
+    final user = username.text.trim();
+    if (user.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a GitHub username to verify')),
+      );
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      final api = context.read<DevHubApi>();
+      final res = await api.fetchGitHubUser(user);
+      final data = res['data'] ?? res;
+      final n = data['name'] ?? user;
+      final reposCount = data['stats']?['totalRepos'] ?? (data['repos'] as List?)?.length ?? 0;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✓ GitHub profile verified! @$user ($n) exists with $reposCount repos.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✗ GitHub user "@$user" not found or error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
@@ -108,12 +145,34 @@ class _SignupScreenState extends State<SignupScreen> {
                 decoration: const InputDecoration(labelText: 'Full name'),
               ),
               const SizedBox(height: 13),
-              TextField(
-                controller: username,
-                decoration: const InputDecoration(
-                  labelText: 'GitHub username',
-                  prefixText: '@',
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: username,
+                      decoration: const InputDecoration(
+                        labelText: 'GitHub username',
+                        prefixText: '@',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    height: 56,
+                    child: OutlinedButton.icon(
+                      onPressed: busy ? null : verifyGitHub,
+                      icon: const Icon(Icons.verified_user_outlined, size: 16, color: AppColors.violet),
+                      label: const Text('Verify'),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.violet),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 13),
               TextField(
