@@ -92,6 +92,11 @@ class _PortfolioStudioScreenState extends State<PortfolioStudioScreen> {
     try {
       final url = await api.getExportZipUrl();
       await launchExternalUrl(url);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Downloading portfolio ZIP file...')),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
