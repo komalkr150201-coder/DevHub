@@ -91,11 +91,20 @@ class _SignupScreenState extends State<SignupScreen> {
       final res = await api.fetchGitHubUser(user);
       final data = res['data'] ?? res;
       final n = data['name'] ?? user;
+      final em = data['email'] ?? '';
       final reposCount = data['stats']?['totalRepos'] ?? (data['repos'] as List?)?.length ?? 0;
+
+      if (n.isNotEmpty && (name.text.isEmpty || name.text == user)) {
+        name.text = n;
+      }
+      if (em.isNotEmpty && em.contains('@') && email.text.isEmpty) {
+        email.text = em;
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✓ GitHub profile verified! @$user ($n) exists with $reposCount repos.'),
+            content: Text('✓ Verified! Fetched Name: "$n"${em.isNotEmpty ? ", Email: $em" : ""} ($reposCount repos).'),
             backgroundColor: Colors.green,
           ),
         );
@@ -104,7 +113,7 @@ class _SignupScreenState extends State<SignupScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✗ GitHub user "@$user" not found or error: $e'),
+            content: Text('✗ $e'),
             backgroundColor: Colors.red,
           ),
         );
