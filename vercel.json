@@ -1,0 +1,9 @@
+{
+  "buildCommand": "npm run build --prefix client",
+  "outputDirectory": "client/dist",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/auth/(.*)", "destination": "/auth/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

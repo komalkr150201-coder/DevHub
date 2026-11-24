@@ -410,10 +410,35 @@ function Editor({ portfolio, setPortfolio, toast, onRegenerateAll }) {
   useEffect(() => {
     const handleFrameMessage = (e) => {
       if (e.data?.type === 'DEVHUB_SEND_EMAIL' && e.data.href) {
-        if (e.data.url) {
-          navigator.clipboard?.writeText?.(e.data.url).catch(() => {});
+        let cleanHref = e.data.href;
+        let cleanUrl = e.data.url || '';
+        const currentOrigin = window.location.origin;
+
+        // Strip about:// or invalid protocols from href and url
+        if (cleanHref.includes('about://')) {
+          cleanHref = cleanHref.replace(/about:\/\/[^/]+/g, currentOrigin);
         }
-        window.location.href = e.data.href;
+        if (cleanUrl.includes('about://')) {
+          cleanUrl = cleanUrl.replace(/about:\/\/[^/]+/g, currentOrigin);
+        }
+
+        // When running on a public deployed domain (e.g. Vercel), ensure local network IPs are mapped to current domain
+        if (!window.location.hostname.includes('localhost') && window.location.hostname !== '127.0.0.1') {
+          cleanHref = cleanHref.replace(/https?:\/\/192\.168\.[0-9.]+(:\d+)?/g, currentOrigin);
+          cleanHref = cleanHref.replace(/https?:\/\/10\.[0-9.]+(:\d+)?/g, currentOrigin);
+          cleanHref = cleanHref.replace(/https?:\/\/172\.(1[6-9]|2\d|3[01])\.[0-9.]+(:\d+)?/g, currentOrigin);
+          cleanHref = cleanHref.replace(/https?:\/\/localhost(:\d+)?/g, currentOrigin);
+
+          cleanUrl = cleanUrl.replace(/https?:\/\/192\.168\.[0-9.]+(:\d+)?/g, currentOrigin);
+          cleanUrl = cleanUrl.replace(/https?:\/\/10\.[0-9.]+(:\d+)?/g, currentOrigin);
+          cleanUrl = cleanUrl.replace(/https?:\/\/172\.(1[6-9]|2\d|3[01])\.[0-9.]+(:\d+)?/g, currentOrigin);
+          cleanUrl = cleanUrl.replace(/https?:\/\/localhost(:\d+)?/g, currentOrigin);
+        }
+
+        if (cleanUrl) {
+          navigator.clipboard?.writeText?.(cleanUrl).catch(() => {});
+        }
+        window.location.href = cleanHref;
         toast('Opening email client with your portfolio link...', 'success');
       } else if (e.data?.type === 'DEVHUB_DOWNLOAD_PORTFOLIO') {
         download();
@@ -623,9 +648,14 @@ function Editor({ portfolio, setPortfolio, toast, onRegenerateAll }) {
                   <Button icon="globe" loading={busyKey === 'pub'} onClick={publish}>{portfolio.status === 'published' ? 'Update published site' : 'Publish'}</Button>
                   {portfolio.status === 'published' && <Button variant="danger-ghost" loading={busyKey === 'unpub'} onClick={unpublish}>Unpublish</Button>}
                 </div>
-                {portfolio.publicUrl && (
-                  <p className="small">Live: <a className="link" href={portfolio.publicUrl} target="_blank" rel="noopener noreferrer">{portfolio.publicUrl}</a></p>
-                )}
+                {portfolio.publicUrl && (() => {
+                  const resolvedUrl = (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1') && (portfolio.publicUrl.includes('192.168.') || portfolio.publicUrl.includes('localhost')))
+                    ? `${window.location.origin}/u/${portfolio.slug || slug || ''}`
+                    : portfolio.publicUrl;
+                  return (
+                    <p className="small">Live: <a className="link" href={resolvedUrl} target="_blank" rel="noopener noreferrer">{resolvedUrl}</a></p>
+                  );
+                })()}
               </Card>
               <Card title="Download source" subtitle="index.html, CSS, JavaScript, assets/ and a README with deployment steps.">
                 <Button icon="download" loading={busyKey === 'zip'} onClick={download}>Download ZIP</Button>

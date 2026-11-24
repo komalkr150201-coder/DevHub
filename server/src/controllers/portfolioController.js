@@ -31,15 +31,30 @@ const pushVersion = (p, reason) => {
   if (p.versions.length > MAX_VERSIONS) p.versions.splice(0, p.versions.length - MAX_VERSIONS);
 };
 export const publicBase = (req) => {
-  if (config.publicBaseUrl) return config.publicBaseUrl;
-  const host = req.get('host') || '';
+  if (config.publicBaseUrl) return config.publicBaseUrl.replace(/\/+$/, '');
+
+  // If the request originates from a deployed frontend (e.g. Vercel), use that origin
+  const origin = req?.get ? (req.get('origin') || req.get('referer')) : null;
+  if (origin && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+    try {
+      return new URL(origin).origin;
+    } catch (_) {}
+  }
+
+  const fProto = req?.get ? req.get('x-forwarded-proto') : null;
+  const fHost = req?.get ? req.get('x-forwarded-host') : null;
+  if (fHost && !fHost.includes('localhost') && !fHost.includes('127.0.0.1')) {
+    return `${fProto || 'https'}://${fHost}`;
+  }
+
+  const host = req?.get ? (req.get('host') || '') : '';
   if (host.includes('localhost') || host.includes('127.0.0.1')) {
     const localIp = getLocalIp();
     if (localIp && localIp !== '127.0.0.1') {
       return `${req.protocol}://${localIp}:5173`;
     }
   }
-  return `${req.protocol}://${host}`;
+  return req?.protocol ? `${req.protocol}://${host}` : 'http://localhost:5173';
 };
 
 export const getNetworkInfo = (req, res) => {
@@ -69,6 +84,7 @@ const getOrCreate = async (user) => {
   if (!p) {
     p = await Portfolio.create({
       owner: user._id,
+      slug: user.username ? normalizeSlug(user.username) : undefined,
       profile: {
         name: user.name || user.username,
         headline: user.headline || '',
@@ -85,6 +101,10 @@ const getOrCreate = async (user) => {
     });
   } else {
     let changed = false;
+    if (!p.slug && user.username) {
+      p.slug = normalizeSlug(user.username);
+      changed = true;
+    }
     if (!p.profile.email && defaultEmail) {
       p.profile.email = defaultEmail;
       changed = true;
@@ -287,6 +307,7 @@ export const previewPortfolio = async (req, res) => {
     const p = await getOrCreate(req.user);
     const draft = { ...p.toObject(), ...sanitizePortfolioInput(req.body || {}) };
     draft.theme = { ...p.theme, ...(req.body?.theme ? sanitizePortfolioInput({ theme: req.body.theme }).theme : {}) };
+    draft.slug = draft.slug || p.slug || req.user?.username || 'portfolio';
     draft.publicBaseUrl = publicBase(req);
     draft.networkIp = getLocalIp();
     res.json({ success: true, html: renderHtml(draft, { inline: true }) });
@@ -364,15 +385,20 @@ export const restoreVersion = async (req, res) => {
   res.json({ success: true, portfolio: view(p, req) });
 };
 
-/** Public page. Falls through (next) when nothing is published so the SPA profile at /u/:username still works. */
+/** Public page. Serves published or generated portfolio HTML. */
 export const servePublicPortfolio = async (req, res, next) => {
   try {
     const slug = String(req.params.username || '').toLowerCase();
-    const p = await Portfolio.findOne({ slug, status: 'published' }).select('-versions');
+    let p = await Portfolio.findOne({ slug }).select('-versions');
+    if (!p) {
+      const user = await User.findOne({ username: slug });
+      if (user) {
+        p = await Portfolio.findOne({ owner: user._id }).select('-versions');
+      }
+    }
     if (!p) return next();
     res.set({
       'Content-Type': 'text/html; charset=utf-8',
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
       'X-Content-Type-Options': 'nosniff',
       'Cache-Control': 'public, max-age=60',
     });

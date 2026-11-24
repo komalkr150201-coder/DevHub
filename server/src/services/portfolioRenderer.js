@@ -715,23 +715,63 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!email) return;
       const name = this.getAttribute('data-name') || 'Developer';
       const slug = this.getAttribute('data-slug') || '';
+      const configuredBase = (this.getAttribute('data-public-base') || '').replace(/\/+$/, '');
       
-      let origin = window.location.origin;
+      let origin = '';
       try {
         if (window.parent && window.parent !== window && window.parent.location?.origin) {
-          origin = window.parent.location.origin;
+          const pOrigin = window.parent.location.origin;
+          if (pOrigin && !pOrigin.startsWith('about') && pOrigin !== 'null') {
+            origin = pOrigin;
+          }
         }
       } catch (_) {}
 
-      // If running on localhost / 127.0.0.1, replace with the computer's network IP so mobile phones and devices on Wi-Fi can open it
-      const networkIp = this.getAttribute('data-network-ip') || '';
-      if ((origin.includes('localhost') || origin.includes('127.0.0.1')) && networkIp && networkIp !== '127.0.0.1') {
-        const port = window.location.port ? (':' + window.location.port) : ':5173';
-        origin = window.location.protocol + '//' + networkIp + port;
+      if (!origin && window.location.origin && !window.location.origin.startsWith('about') && window.location.origin !== 'null') {
+        origin = window.location.origin;
       }
 
-      const isBlankOrPreview = window.location.href.includes('about:') || window.location.href.startsWith('data:');
-      const url = slug ? (origin + '/u/' + slug) : (!isBlankOrPreview && !window.location.href.includes('localhost') ? window.location.href : (origin + '/u/' + (slug || 'portfolio')));
+      // Prioritize configured public URL (e.g. from Vercel / production env)
+      if (configuredBase && (configuredBase.startsWith('http://') || configuredBase.startsWith('https://'))) {
+        origin = configuredBase;
+      }
+
+      // Safe protocol determination (never 'about:' or 'file:')
+      let protocol = (origin && origin.startsWith('http:')) ? 'http:' : 'https:';
+      try {
+        if (window.parent && window.parent !== window && window.parent.location?.protocol && !window.parent.location.protocol.startsWith('about')) {
+          protocol = window.parent.location.protocol;
+        } else if (window.location.protocol && !window.location.protocol.startsWith('about') && !window.location.protocol.startsWith('file')) {
+          protocol = window.location.protocol;
+        }
+      } catch (_) {}
+
+      // If running on localhost and no production URL is configured, allow local network IP with safe protocol
+      const networkIp = this.getAttribute('data-network-ip') || '';
+      if ((!origin || origin.includes('localhost') || origin.includes('127.0.0.1')) && networkIp && networkIp !== '127.0.0.1') {
+        let parentPort = '';
+        try { if (window.parent?.location?.port) parentPort = ':' + window.parent.location.port; } catch (_) {}
+        const port = parentPort || (window.location.port ? (':' + window.location.port) : ':5173');
+        origin = protocol + '//' + networkIp + port;
+      } else if (!origin || origin.startsWith('about') || origin === 'null') {
+        origin = protocol + '//' + (window.location.host || 'localhost:5173');
+      }
+
+      // Final sanitize: never allow 'about:' or invalid protocol
+      if (origin.startsWith('about:') || origin.startsWith('file:') || origin === 'null') {
+        origin = 'http://localhost:5173';
+      }
+
+      const isBlankOrPreview = window.location.href.includes('about:') || window.location.href.startsWith('data:') || window.location.href.startsWith('blob:');
+      const isInsideApp = window.parent && window.parent !== window;
+      let url = '';
+      if (configuredBase) {
+        url = configuredBase + (slug ? '/u/' + slug : '');
+      } else if (isInsideApp || isBlankOrPreview) {
+        url = origin + (slug ? '/u/' + slug : '/u/portfolio');
+      } else {
+        url = window.location.href.split('?')[0].split('#')[0];
+      }
       const dlUrl = slug ? (origin + '/u/' + slug + '/download') : '';
 
       const subject = encodeURIComponent('Developer Portfolio - ' + name);
@@ -757,17 +797,44 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.btn-download-portfolio').forEach((btn) => {
     btn.addEventListener('click', function(e) {
       const slug = this.getAttribute('data-slug') || '';
-      let origin = window.location.origin;
+      const configuredBase = (this.getAttribute('data-public-base') || '').replace(/\/+$/, '');
+      let origin = '';
       try {
         if (window.parent && window.parent !== window && window.parent.location?.origin) {
-          origin = window.parent.location.origin;
+          const pOrigin = window.parent.location.origin;
+          if (pOrigin && !pOrigin.startsWith('about') && pOrigin !== 'null') {
+            origin = pOrigin;
+          }
+        }
+      } catch (_) {}
+
+      if (!origin && window.location.origin && !window.location.origin.startsWith('about') && window.location.origin !== 'null') {
+        origin = window.location.origin;
+      }
+
+      if (configuredBase && (configuredBase.startsWith('http://') || configuredBase.startsWith('https://'))) {
+        origin = configuredBase;
+      }
+
+      let protocol = (origin && origin.startsWith('http:')) ? 'http:' : 'https:';
+      try {
+        if (window.parent && window.parent !== window && window.parent.location?.protocol && !window.parent.location.protocol.startsWith('about')) {
+          protocol = window.parent.location.protocol;
+        } else if (window.location.protocol && !window.location.protocol.startsWith('about')) {
+          protocol = window.location.protocol;
         }
       } catch (_) {}
 
       const networkIp = this.getAttribute('data-network-ip') || '';
-      if ((origin.includes('localhost') || origin.includes('127.0.0.1')) && networkIp && networkIp !== '127.0.0.1') {
-        const port = window.location.port ? (':' + window.location.port) : ':5173';
-        origin = window.location.protocol + '//' + networkIp + port;
+      if ((!origin || origin.includes('localhost') || origin.includes('127.0.0.1')) && networkIp && networkIp !== '127.0.0.1') {
+        let parentPort = '';
+        try { if (window.parent?.location?.port) parentPort = ':' + window.parent.location.port; } catch (_) {}
+        const port = parentPort || (window.location.port ? (':' + window.location.port) : ':5173');
+        origin = protocol + '//' + networkIp + port;
+      }
+
+      if (origin.startsWith('about:') || origin === 'null') {
+        origin = 'http://localhost:5173';
       }
 
       if (slug) {
@@ -863,8 +930,8 @@ ${name}`;
         ${bio ? `<div class="bio">${bio}</div>` : ''}
         
         <div class="links">
-          ${email ? `<a href="${mailtoHref}" class="btn btn-primary btn-send-email" data-email="${email}" data-name="${name}" data-slug="${escapeHtml(slug)}" data-network-ip="${escapeHtml(portfolio.networkIp || '')}" target="_blank" rel="noopener noreferrer">Get in Touch</a>` : ''}
-          <a href="${downloadUrl || '#'}" class="btn btn-download-portfolio" data-slug="${escapeHtml(slug)}" data-network-ip="${escapeHtml(portfolio.networkIp || '')}" download="${slug || 'portfolio'}.zip">Download Portfolio</a>
+          ${email ? `<a href="${mailtoHref}" class="btn btn-primary btn-send-email" data-email="${email}" data-name="${name}" data-slug="${escapeHtml(slug)}" data-public-base="${escapeHtml(hostBase)}" data-network-ip="${escapeHtml(portfolio.networkIp || '')}" target="_blank" rel="noopener noreferrer">Get in Touch</a>` : ''}
+          <a href="${downloadUrl || '#'}" class="btn btn-download-portfolio" data-slug="${escapeHtml(slug)}" data-public-base="${escapeHtml(hostBase)}" data-network-ip="${escapeHtml(portfolio.networkIp || '')}" download="${slug || 'portfolio'}.zip">Download Portfolio</a>
           ${links.github ? `<a href="${escapeHtml(links.github)}" target="_blank" rel="noopener noreferrer" class="btn">GitHub</a>` : ''}
           ${links.linkedin ? `<a href="${escapeHtml(links.linkedin)}" target="_blank" rel="noopener noreferrer" class="btn">LinkedIn</a>` : ''}
           ${links.twitter ? `<a href="${escapeHtml(links.twitter)}" target="_blank" rel="noopener noreferrer" class="btn">Twitter/X</a>` : ''}
@@ -939,8 +1006,8 @@ ${name}`;
         <h2 class="section-title" style="justify-content: center;"><span>Let's Build Something Together</span></h2>
         <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Have a project in mind or interested in collaborating? Feel free to reach out.</p>
         <div class="links" style="justify-content: center;">
-          ${email ? `<a href="${mailtoHref}" class="btn btn-primary btn-send-email" data-email="${email}" data-name="${name}" data-slug="${escapeHtml(slug)}" data-network-ip="${escapeHtml(portfolio.networkIp || '')}" target="_blank" rel="noopener noreferrer">Send Email</a>` : ''}
-          <a href="${downloadUrl || '#'}" class="btn btn-download-portfolio" data-slug="${escapeHtml(slug)}" data-network-ip="${escapeHtml(portfolio.networkIp || '')}" download="${slug || 'portfolio'}.zip">Download Portfolio</a>
+          ${email ? `<a href="${mailtoHref}" class="btn btn-primary btn-send-email" data-email="${email}" data-name="${name}" data-slug="${escapeHtml(slug)}" data-public-base="${escapeHtml(hostBase)}" data-network-ip="${escapeHtml(portfolio.networkIp || '')}" target="_blank" rel="noopener noreferrer">Send Email</a>` : ''}
+          <a href="${downloadUrl || '#'}" class="btn btn-download-portfolio" data-slug="${escapeHtml(slug)}" data-public-base="${escapeHtml(hostBase)}" data-network-ip="${escapeHtml(portfolio.networkIp || '')}" download="${slug || 'portfolio'}.zip">Download Portfolio</a>
           ${links.github ? `<a href="${escapeHtml(links.github)}" target="_blank" rel="noopener noreferrer" class="btn">GitHub</a>` : ''}
           ${links.linkedin ? `<a href="${escapeHtml(links.linkedin)}" target="_blank" rel="noopener noreferrer" class="btn">LinkedIn</a>` : ''}
         </div>

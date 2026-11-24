@@ -32,6 +32,9 @@ export const config = {
     apiKey: process.env.GEMINI_API_KEY || '',
     model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
   },
-  publicBaseUrl: process.env.PORTFOLIO_PUBLIC_URL || '',
+  publicBaseUrl:
+    process.env.PORTFOLIO_PUBLIC_URL ||
+    (process.env.CLIENT_URL && !process.env.CLIENT_URL.includes('localhost') && !process.env.CLIENT_URL.includes('127.0.0.1') ? process.env.CLIENT_URL : '') ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ''),
   syncIntervalHours: parseInt(process.env.SYNC_INTERVAL_HOURS, 10) || 6,
 };
