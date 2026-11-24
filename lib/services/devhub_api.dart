@@ -121,6 +121,9 @@ class DevHubApi {
   Future<Map<String, dynamic>> login(String identifier, String password) async =>
       Map<String, dynamic>.from(await _request('POST', '/auth/login', body: {'identifier': identifier, 'password': password}));
 
+  Future<Map<String, dynamic>> fetchGitHubUser(String username) async =>
+      Map<String, dynamic>.from(await _request('POST', '/auth/fetch-github-user', body: {'username': username}));
+
   Future<Map<String, dynamic>> register(Map<String, dynamic> data) async =>
       Map<String, dynamic>.from(await _request('POST', '/auth/register', body: data));
 
