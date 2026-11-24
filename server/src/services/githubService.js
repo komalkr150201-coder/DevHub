@@ -521,14 +521,14 @@ export const scrapePublicGitHub = async (cleanUsername) => {
       Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     };
 
-    const [userRes, reposRes] = await Promise.all([
-      axios.get(`https://github.com/${cleanUsername}`, { headers: webHeaders, timeout: 8000 }).catch(() => null),
-      axios.get(`https://github.com/${cleanUsername}?tab=repositories`, { headers: webHeaders, timeout: 8000 }).catch(() => null),
-    ]);
+    const userRes = await axios.get(`https://github.com/${cleanUsername}`, { headers: webHeaders, timeout: 8000 }).catch(() => null);
+    if (!userRes || userRes.status !== 200) return null;
+    const userHtml = userRes.data || '';
+    if (userHtml.includes('Not Found') || userHtml.includes('Error 404') || userHtml.includes('This is not the web page you are looking for')) {
+      return null;
+    }
 
-    if (!userRes && !reposRes) return null;
-
-    const userHtml = userRes?.data || '';
+    const reposRes = await axios.get(`https://github.com/${cleanUsername}?tab=repositories`, { headers: webHeaders, timeout: 8000 }).catch(() => null);
     const reposHtml = reposRes?.data || '';
 
     // Extract name
