@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:typed_data';
 import '../../services/devhub_api.dart';
 import '../../core/app_theme.dart';
+import '../../core/download_helper.dart';
 import '../../widgets/devhub_widgets.dart';
 import 'template_selector_screen.dart';
 
@@ -88,21 +90,42 @@ class _PortfolioStudioScreenState extends State<PortfolioStudioScreen> {
   }
 
   Future<void> _downloadPortfolioZip() async {
-    final api = context.read<DevHubApi>();
+    setState(() => busy = true);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Downloading portfolio ZIP archive...'), duration: Duration(seconds: 2)),
+      );
+    }
     try {
-      final url = await api.getExportZipUrl();
-      await launchExternalUrl(url);
+      final api = context.read<DevHubApi>();
+      final Uint8List zipBytes = await api.downloadPortfolioZip();
+
+      if (zipBytes.isEmpty) {
+        throw Exception('Downloaded ZIP file is empty.');
+      }
+
+      final filename = '${portfolioData?['slug'] ?? 'devhub'}-portfolio.zip';
+      await downloadFile(zipBytes, filename);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Downloading portfolio ZIP file...')),
+          const SnackBar(
+            content: Text('Portfolio ZIP downloaded successfully!'),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to download portfolio: $e')),
+          SnackBar(
+            content: Text('Failed to download portfolio ZIP: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
+    } finally {
+      if (mounted) setState(() => busy = false);
     }
   }
 
