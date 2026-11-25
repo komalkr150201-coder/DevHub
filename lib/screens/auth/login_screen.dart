@@ -55,9 +55,16 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> submit() async {
+    final identifierText = id.text.trim();
+    if (!identifierText.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email address.')),
+      );
+      return;
+    }
     setState(() => busy = true);
     try {
-      await context.read<AuthState>().login(id.text.trim(), pass.text);
+      await context.read<AuthState>().login(identifierText, pass.text);
       if (mounted) Navigator.pushReplacementNamed(context, '/app');
     } catch (e) {
       if (mounted) {
@@ -79,43 +86,6 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString())),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> verifyGitHub() async {
-    final username = id.text.trim();
-    if (username.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a GitHub username to verify')),
-      );
-      return;
-    }
-    setState(() => busy = true);
-    try {
-      final api = context.read<DevHubApi>();
-      final res = await api.fetchGitHubUser(username);
-      final data = res['data'] ?? res;
-      final name = data['name'] ?? username;
-      final reposCount = data['stats']?['totalRepos'] ?? (data['repos'] as List?)?.length ?? 0;
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✓ GitHub profile verified! @$username ($name) exists with $reposCount repos.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✗ GitHub user "@$username" not found or error: $e'),
-            backgroundColor: Colors.red,
-          ),
         );
       }
     } finally {
@@ -158,34 +128,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(color: AppColors.muted),
                     ),
                     const SizedBox(height: 28),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: id,
-                            decoration: const InputDecoration(
-                              labelText: 'Username or email',
-                              prefixIcon: Icon(Icons.person_outline),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          height: 56,
-                          child: OutlinedButton.icon(
-                            onPressed: busy ? null : verifyGitHub,
-                            icon: const Icon(Icons.verified_user_outlined, size: 16, color: AppColors.violet),
-                            label: const Text('Verify'),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: AppColors.violet),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    TextField(
+                      controller: id,
+                      decoration: const InputDecoration(
+                        labelText: 'Email address',
+                        prefixIcon: Icon(Icons.email_outlined),
+                      ),
                     ),
                     const SizedBox(height: 14),
                     TextField(

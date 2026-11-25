@@ -61,29 +61,25 @@ const view = (p, req) => {
 const fail = (res, err) => res.status(err.status || 400).json({ success: false, message: err.message });
 
 const getOrCreate = async (user) => {
-  let targetUser = user;
-  if (!targetUser) {
-    targetUser = await User.findOne({}) || await User.create({ username: 'guest', name: 'Guest Developer' });
-  }
-  let p = await Portfolio.findOne({ owner: targetUser._id });
-  const defaultEmail = targetUser.email || '';
-  const defaultGithub = targetUser.links?.github || (targetUser.username ? `https://github.com/${targetUser.username}` : '');
-  const defaultLinkedin = targetUser.links?.linkedin || (targetUser.username ? `https://www.linkedin.com/in/${targetUser.username}` : '');
+  let p = await Portfolio.findOne({ owner: user._id });
+  const defaultEmail = user.email || '';
+  const defaultGithub = user.links?.github || (user.username ? `https://github.com/${user.username}` : '');
+  const defaultLinkedin = user.links?.linkedin || (user.username ? `https://www.linkedin.com/in/${user.username}` : '');
 
   if (!p) {
     p = await Portfolio.create({
-      owner: targetUser._id,
+      owner: user._id,
       profile: {
-        name: targetUser.name || targetUser.username,
-        headline: targetUser.headline || '',
-        bio: targetUser.bio || '',
+        name: user.name || user.username,
+        headline: user.headline || '',
+        bio: user.bio || '',
         email: defaultEmail,
-        avatarUrl: targetUser.avatarUrl,
+        avatarUrl: user.avatarUrl,
         links: {
           github: defaultGithub,
           linkedin: defaultLinkedin,
-          twitter: targetUser.links?.twitter || '',
-          website: targetUser.links?.website || ''
+          twitter: user.links?.twitter || '',
+          website: user.links?.website || ''
         }
       },
     });
@@ -311,13 +307,13 @@ export const exportFiles = (p) => [
 ];
 
 export const downloadZip = async (req, res) => {
-  let user = req.user;
-  if (!user) {
-    user = await User.findOne({}) || await User.create({ username: 'guest', name: 'Guest Developer' });
-  }
-  const p = await getOrCreate(user);
+  const p = await getOrCreate(req.user);
   const zip = buildPortfolioZip(exportFiles(p));
-  res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${p.slug || user.username}-portfolio.zip"`, 'Content-Length': zip.length });
+  res.set({
+    'Content-Type': 'application/zip',
+    'Content-Disposition': `attachment; filename="${p.slug || req.user.username}-portfolio.zip"`,
+    'Content-Length': zip.length,
+  });
   res.send(zip);
 };
 

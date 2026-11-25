@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { optionalAuth } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { aiLimiter } from '../middleware/rateLimit.js';
 import {
   getMyPortfolio, getGitHubBackground, updateMyPortfolio, generatePortfolio, regenerateSection, previewPortfolio,
@@ -7,7 +7,7 @@ import {
 } from '../controllers/portfolioController.js';
 
 const router = Router();
-router.use(optionalAuth);
+router.use(requireAuth);
 
 router.get('/', getMyPortfolio);
 router.get('/network-info', getNetworkInfo);
