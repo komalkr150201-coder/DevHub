@@ -97,15 +97,22 @@ class LandingScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      Text(
-                        'Your GitHub is your résumé.',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
-                            ?.copyWith(
-                              fontSize: 34,
-                              fontWeight: FontWeight.w900,
-                            ),
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [Colors.white, Color(0xFFE2D9FF), AppColors.sky],
+                        ).createShader(bounds),
+                        child: Text(
+                          'Your GitHub is your résumé.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineMedium
+                              ?.copyWith(
+                                fontSize: 38,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                letterSpacing: -0.8,
+                              ),
+                        ),
                       ),
                       const SizedBox(height: 8),
                       const Text(
